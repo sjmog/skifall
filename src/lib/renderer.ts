@@ -1,5 +1,6 @@
 import type { Point, Line, Camera } from '../types';
 import { COLORS, LINE_WIDTH } from './constants';
+import type { StaticObstacle, WindZone } from './level-generator';
 
 const GRID_SIZE = 50;
 
@@ -140,4 +141,173 @@ export function calculateFitBounds(
     centerY: (minY + maxY) / 2,
     zoom,
   };
+}
+
+export function drawObstacle(
+  ctx: CanvasRenderingContext2D,
+  obstacle: StaticObstacle,
+  obstacleImage: HTMLImageElement | null,
+  scale = 1
+): void {
+  if (scale <= 0) return;
+  
+  ctx.save();
+  ctx.globalAlpha = scale;
+  
+  if (obstacleImage) {
+    const scaledWidth = obstacleImage.width * 0.4;
+    const scaledHeight = obstacleImage.height * 0.4;
+    ctx.drawImage(obstacleImage, obstacle.position.x, obstacle.position.y, scaledWidth, scaledHeight);
+  } else {
+    ctx.fillStyle = '#6B7280';
+    ctx.globalAlpha = 0.7 * scale;
+    ctx.fillRect(obstacle.position.x, obstacle.position.y, obstacle.bounds.width, obstacle.bounds.height);
+  }
+  ctx.restore();
+}
+
+export function drawObstacles(
+  ctx: CanvasRenderingContext2D,
+  obstacles: StaticObstacle[],
+  getObstacleImage: (type: StaticObstacle['type']) => HTMLImageElement | null,
+  scale = 1
+): void {
+  for (const obstacle of obstacles) {
+    let obstacleImage: HTMLImageElement | null = null;
+    switch (obstacle.type) {
+      case 'mountain-peak':
+        obstacleImage = getObstacleImage('mountain-peak');
+        break;
+      case 'rock-formation':
+        obstacleImage = getObstacleImage('rock-formation');
+        break;
+      case 'tree':
+        obstacleImage = getObstacleImage('tree');
+        break;
+      case 'structure':
+        obstacleImage = getObstacleImage('structure');
+        break;
+    }
+    drawObstacle(ctx, obstacle, obstacleImage, scale);
+  }
+}
+
+export function drawWindZone(
+  ctx: CanvasRenderingContext2D,
+  zone: WindZone,
+  animationTime: number,
+  extendedWidth: number
+): void {
+  const { position, bounds, shape, windSpeed, direction } = zone;
+  const baseOpacity = 0.25;
+  const lineSpacing = 60;
+  const waveAmplitude = 12;
+  const waveFrequency = 0.025;
+  const movementSpeed = 0.01;
+  const moveRight = direction === 'right';
+  
+  ctx.save();
+  ctx.globalAlpha = baseOpacity;
+  ctx.strokeStyle = '#6B7280';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  
+  if (shape === 'vertical-column') {
+    const numLines = Math.ceil(bounds.width / lineSpacing) + 3;
+    const cycleLength = lineSpacing * 2;
+    const rawOffset = animationTime * movementSpeed * windSpeed * 20;
+    let offsetX = rawOffset % cycleLength;
+    if (offsetX < 0) offsetX += cycleLength;
+    const directionOffset = moveRight ? -offsetX : offsetX;
+    
+    for (let i = -2; i <= numLines; i++) {
+      let baseX = position.x + (i * lineSpacing) + directionOffset;
+      
+      while (baseX < position.x - cycleLength) {
+        baseX += cycleLength;
+      }
+      while (baseX > position.x + bounds.width + cycleLength) {
+        baseX -= cycleLength;
+      }
+      
+      if (baseX < position.x - cycleLength || baseX > position.x + bounds.width + cycleLength) continue;
+      
+      ctx.beginPath();
+      let firstPoint = true;
+      
+      for (let y = position.y; y <= position.y + bounds.height; y += 3) {
+        const wave = Math.sin((y * waveFrequency) + (animationTime * movementSpeed * 0.5)) * waveAmplitude;
+        const x = baseX + wave;
+        
+        if (firstPoint) {
+          ctx.moveTo(x, y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      
+      ctx.stroke();
+    }
+  } else {
+    const numLines = Math.ceil(bounds.height / lineSpacing) + 1;
+    const cycleLength = lineSpacing * 2;
+    const rawOffset = animationTime * movementSpeed * windSpeed * 20;
+    let offsetX = rawOffset % cycleLength;
+    if (offsetX < 0) offsetX += cycleLength;
+    const directionOffset = moveRight ? -offsetX : offsetX;
+    const renderWidth = extendedWidth;
+    const centerX = position.x + bounds.width / 2;
+    const startX = centerX - renderWidth / 2;
+    const endX = centerX + renderWidth / 2;
+    
+    for (let i = 0; i <= numLines; i++) {
+      const baseY = position.y + (i * lineSpacing);
+      
+      ctx.beginPath();
+      let firstPoint = true;
+      
+      for (let x = startX; x <= endX; x += 3) {
+        let animatedX = x + directionOffset;
+        
+        while (animatedX > endX) {
+          animatedX -= cycleLength;
+        }
+        while (animatedX < startX) {
+          animatedX += cycleLength;
+        }
+        
+        if (animatedX < startX || animatedX > endX) continue;
+        
+        const wave = Math.sin((animatedX * waveFrequency) + (animationTime * movementSpeed * 0.5)) * waveAmplitude;
+        const y = baseY + wave;
+        
+        if (firstPoint) {
+          ctx.moveTo(animatedX, y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(animatedX, y);
+        }
+      }
+      
+      ctx.stroke();
+    }
+  }
+  
+  ctx.restore();
+}
+
+export function drawWindZones(
+  ctx: CanvasRenderingContext2D,
+  zones: WindZone[],
+  animationTime: number,
+  camera: { x: number; y: number; zoom: number },
+  canvasWidth: number
+): void {
+  const viewWidth = canvasWidth / camera.zoom;
+  const extendedWidth = Math.max(10000, viewWidth * 10);
+  
+  for (const zone of zones) {
+    drawWindZone(ctx, zone, animationTime, extendedWidth);
+  }
 }

@@ -12,6 +12,7 @@ import {
   SKI_HEIGHT,
   type SkierRenderState,
 } from './skier';
+import type { StaticObstacle, WindZone } from './level-generator';
 
 const { World, Vec2, Box, Circle, Edge, RevoluteJoint, WeldJoint } = planck;
 
@@ -19,6 +20,7 @@ const SCALE = 30;
 const CATEGORY_GROUND = 0x0001;
 const CATEGORY_SKIS = 0x0002;
 const CATEGORY_BODY = 0x0004;
+const CATEGORY_OBSTACLE = 0x0008;
 
 function toPhysics(px: number): number {
   return px / SCALE;
@@ -39,6 +41,8 @@ export interface PhysicsEngine {
   ankleJoint: planck.Joint | null;
   groundBody: planck.Body;
   lineFixtures: Map<string, planck.Fixture[]>;
+  obstacleBodies: Map<string, planck.Body>;
+  windZones: WindZone[];
   crashed: boolean;
   spawnX: number;
   spawnY: number;
@@ -90,7 +94,7 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
     friction: 0.3,
     restitution: 0.2,
     filterCategoryBits: CATEGORY_BODY,
-    filterMaskBits: CATEGORY_GROUND,
+    filterMaskBits: CATEGORY_GROUND | CATEGORY_OBSTACLE,
   });
   head.setUserData({ type: 'body' });
 
@@ -107,7 +111,7 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
     friction: 0.3,
     restitution: 0.1,
     filterCategoryBits: CATEGORY_BODY,
-    filterMaskBits: CATEGORY_GROUND,
+    filterMaskBits: CATEGORY_GROUND | CATEGORY_OBSTACLE,
   });
   upperBody.setUserData({ type: 'body' });
 
@@ -124,7 +128,7 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
     friction: 0.3,
     restitution: 0.1,
     filterCategoryBits: CATEGORY_BODY,
-    filterMaskBits: CATEGORY_GROUND,
+    filterMaskBits: CATEGORY_GROUND | CATEGORY_OBSTACLE,
   });
   lowerBody.setUserData({ type: 'body' });
 
@@ -141,7 +145,7 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
     friction: 0.02,
     restitution: 0.0,
     filterCategoryBits: CATEGORY_SKIS,
-    filterMaskBits: CATEGORY_GROUND,
+    filterMaskBits: CATEGORY_GROUND | CATEGORY_OBSTACLE,
   });
   skis.setUserData({ type: 'skis' });
 
@@ -176,6 +180,8 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
     ankleJoint,
     groundBody,
     lineFixtures: new Map(),
+    obstacleBodies: new Map(),
+    windZones: [],
     crashed: false,
     spawnX,
     spawnY,
@@ -196,9 +202,11 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
 
     const bodyHitGround = userDataA?.type === 'body' && bodyB === groundBody;
     const groundHitBody = userDataB?.type === 'body' && bodyA === groundBody;
+    const bodyHitObstacle = (userDataA?.type === 'body' || userDataA?.type === 'skis') && userDataB?.type === 'obstacle';
+    const obstacleHitBody = (userDataB?.type === 'body' || userDataB?.type === 'skis') && userDataA?.type === 'obstacle';
 
-    if ((bodyHitGround || groundHitBody) && !engine.crashed && engine.hipJoint) {
-      const bodyPart = bodyHitGround ? bodyA : bodyB;
+    if ((bodyHitGround || groundHitBody || bodyHitObstacle || obstacleHitBody) && !engine.crashed && engine.hipJoint) {
+      const bodyPart = bodyHitGround || bodyHitObstacle ? bodyA : bodyB;
       
       const velocity = bodyPart.getLinearVelocity();
       const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
@@ -325,6 +333,55 @@ export function startSkier(engine: PhysicsEngine): void {
   engine.skis.setActive(true);
 }
 
+function createObstacleFixture(body: planck.Body, rendered: { width: number; height: number }): void {
+  const halfWidth = toPhysics(rendered.width / 2);
+  const halfHeight = toPhysics(rendered.height / 2);
+  body.createFixture({
+    shape: new Box(halfWidth, halfHeight),
+    filterCategoryBits: CATEGORY_OBSTACLE,
+    filterMaskBits: CATEGORY_BODY | CATEGORY_SKIS,
+  });
+}
+
+export function addObstaclesToWorld(engine: PhysicsEngine, obstacles: StaticObstacle[]): void {
+  for (const [, body] of engine.obstacleBodies) {
+    engine.world.destroyBody(body);
+  }
+  engine.obstacleBodies.clear();
+  
+  const RENDERED_SIZE = 200;
+  const COLLISION_SIZE = RENDERED_SIZE * 0.6;
+  
+  for (const obstacle of obstacles) {
+    const centerX = obstacle.position.x + RENDERED_SIZE / 2;
+    const centerY = obstacle.position.y + RENDERED_SIZE / 2;
+    
+    const body = engine.world.createBody({
+      type: 'static',
+      position: Vec2(toPhysics(centerX), toPhysics(centerY)),
+    });
+
+    createObstacleFixture(body, { width: COLLISION_SIZE, height: COLLISION_SIZE });
+    body.setUserData({ type: 'obstacle', obstacleId: obstacle.id });
+    engine.obstacleBodies.set(obstacle.id, body);
+  }
+}
+
+export function setWindZones(engine: PhysicsEngine, windZones: WindZone[]): void {
+  engine.windZones = windZones;
+}
+
+function isPointInWindZone(point: { x: number; y: number }, zone: WindZone): boolean {
+  const px = toPixels(point.x);
+  const py = toPixels(point.y);
+  return (
+    px >= zone.position.x &&
+    px <= zone.position.x + zone.bounds.width &&
+    py >= zone.position.y &&
+    py <= zone.position.y + zone.bounds.height
+  );
+}
+
 export function stepPhysics(engine: PhysicsEngine, deltaMs: number): void {
   if (engine.crashed && engine.hipJoint) {
     if (engine.neckJoint) {
@@ -344,6 +401,17 @@ export function stepPhysics(engine: PhysicsEngine, deltaMs: number): void {
     engine.upperBody.setAngularVelocity(engine.upperBody.getAngularVelocity() + (Math.random() - 0.5) * 15);
     engine.lowerBody.setAngularVelocity(engine.lowerBody.getAngularVelocity() + (Math.random() - 0.5) * 12);
     engine.skis.setAngularVelocity(engine.skis.getAngularVelocity() + (Math.random() - 0.5) * 20);
+  }
+
+  if (engine.windZones.length > 0 && !engine.crashed) {
+    const skisPos = engine.skis.getPosition();
+    for (const zone of engine.windZones) {
+      if (isPointInWindZone(skisPos, zone)) {
+        const windForce = zone.direction === 'right' ? zone.strength : -zone.strength;
+        const forceX = windForce * GRAVITY * 10;
+        engine.skis.applyForce(Vec2(forceX, 0), skisPos);
+      }
+    }
   }
 
   const dt = Math.min(deltaMs / 1000, 1 / 30);

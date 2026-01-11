@@ -28,7 +28,10 @@ import {
   drawLine,
   applyCameraTransform,
   calculateFitBounds,
+  drawObstacles,
+  drawWindZones,
 } from "../lib/renderer";
+import { getObstacleSprites, loadObstacleSprites } from "../lib/obstacle-sprites";
 import { drawSkier, drawGhostSkier, setSkierCharacter } from "../lib/skier";
 import startBtnImg from "../assets/images/start.png";
 import resetBtnImg from "../assets/images/reset.png";
@@ -128,13 +131,15 @@ export function GameCanvas({
     useState<TransitionPhase>("portals-in");
 
   const skierScaleTarget = useRef<number | null>(null);
-  const portalScaleTarget = useRef<number | null>(1); // Start with target=1 for intro animation
+  const portalScaleTarget = useRef<number | null>(1);
   const lastSkierBroadcastRef = useRef<number>(0);
+  const animationTimeRef = useRef<number>(0);
+  const animationStartTimeRef = useRef<number | null>(null);
   const interpolatedSkiersRef = useRef<Map<string, SkierRenderState>>(
     new Map()
   );
 
-  const gameState = useGameState(serverLevel);
+  const gameState = useGameState(serverLevel, currentRound);
   const { player, actions } = useLocalPlayer();
   const camera = useCamera(gameState.level.start);
   const timer = useTimer();
@@ -151,6 +156,11 @@ export function GameCanvas({
       setSkierCharacter(localPlayer.character as SkierCharacter);
     }
   }, [localPlayer?.character]);
+
+  // Load obstacle sprites on mount
+  useEffect(() => {
+    loadObstacleSprites().catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (!serverLevel || serverLevel.id === level.id) return;
@@ -180,6 +190,11 @@ export function GameCanvas({
     lastSyncedLevelRef.current = levelKey;
 
     actions.initAtSpawn(level.start.x, level.start.y);
+    animationStartTimeRef.current = null;
+    
+    // Set obstacles and wind zones for the level
+    actions.setObstacles(level.staticObstacles);
+    actions.setWindZones(level.windZones);
 
     const bounds = calculateFitBounds(
       level.start,
@@ -205,6 +220,8 @@ export function GameCanvas({
     actions,
     level.start,
     level.finish,
+    level.staticObstacles,
+    level.windZones,
     canvasSize,
     camera,
     timer,
@@ -324,6 +341,27 @@ export function GameCanvas({
     drawMarker(ctx, level.start, "START", COLORS.startZone, portalScale);
     drawMarker(ctx, level.finish, "FINISH", COLORS.finishZone, portalScale);
 
+    drawWindZones(ctx, level.windZones, animationTimeRef.current, camera.camera, width);
+
+    const obstacleSprites = getObstacleSprites();
+    drawObstacles(
+      ctx,
+      level.staticObstacles,
+      (type) => {
+        switch (type) {
+          case 'mountain-peak':
+            return obstacleSprites?.mountainPeak ?? null;
+          case 'rock-formation':
+            return obstacleSprites?.rockFormation ?? null;
+          case 'tree':
+            return obstacleSprites?.tree ?? null;
+          case 'structure':
+            return obstacleSprites?.house ?? null;
+        }
+      },
+      portalScale
+    );
+
     for (const line of remoteLines) {
       const linePlayer = players.find((p) => p.id === line.playerId);
       const color = linePlayer?.color ?? COLORS.line;
@@ -360,6 +398,7 @@ export function GameCanvas({
     canvasSize,
     camera.camera,
     level,
+    level.staticObstacles,
     player.lines,
     player.currentStroke,
     player.skierRenderState,
@@ -376,6 +415,11 @@ export function GameCanvas({
     const loop = (time: number) => {
       const delta = lastTimeRef.current ? time - lastTimeRef.current : 16.67;
       lastTimeRef.current = time;
+      
+      if (animationStartTimeRef.current === null) {
+        animationStartTimeRef.current = time;
+      }
+      animationTimeRef.current = time - animationStartTimeRef.current;
 
       if (
         player.runState === "moving" ||

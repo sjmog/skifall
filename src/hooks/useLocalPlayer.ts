@@ -4,6 +4,7 @@ import { useDrawing } from './useDrawing';
 import type { Point, Line, SkierState } from '../types';
 import { calculateInitialPositions, type SkierRenderState } from '../lib/skier';
 import type { SkierPhysicsState } from '../lib/physics';
+import type { StaticObstacle, WindZone } from '../lib/level-generator';
 
 export interface LocalPlayer {
   id: string;
@@ -27,6 +28,8 @@ interface UseLocalPlayerActions {
   update: (delta: number) => SkierRenderState;
   setRunState: (state: SkierState) => void;
   getPhysicsState: () => SkierPhysicsState | null;
+  setObstacles: (obstacles: StaticObstacle[]) => void;
+  setWindZones: (zones: WindZone[]) => void;
 }
 
 export interface UseLocalPlayerReturn {
@@ -135,6 +138,8 @@ export function useLocalPlayer(): UseLocalPlayerReturn {
     update,
     setRunState,
     getPhysicsState: physics.getPhysicsState,
+    setObstacles: physics.setObstacles,
+    setWindZones: physics.setWindZones,
   };
 
   return { player, actions };

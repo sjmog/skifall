@@ -8,11 +8,14 @@ import {
   stepPhysics,
   getSkierState,
   getSkierPhysicsState,
+  addObstaclesToWorld,
+  setWindZones,
   type PhysicsEngine,
   type SkierPhysicsState,
 } from '../lib/physics';
 import type { Line } from '../types';
 import type { SkierRenderState } from '../lib/skier';
+import type { StaticObstacle, WindZone } from '../lib/level-generator';
 
 interface UsePhysicsReturn {
   initPhysics: (spawnX: number, spawnY: number) => void;
@@ -23,6 +26,8 @@ interface UsePhysicsReturn {
   play: () => void;
   update: (delta: number) => SkierRenderState;
   getPhysicsState: () => SkierPhysicsState | null;
+  setObstacles: (obstacles: StaticObstacle[]) => void;
+  setWindZones: (zones: WindZone[]) => void;
 }
 
 export function usePhysics(): UsePhysicsReturn {
@@ -84,6 +89,18 @@ export function usePhysics(): UsePhysicsReturn {
     return null;
   }, []);
 
+  const setObstacles = useCallback((obstacles: StaticObstacle[]) => {
+    if (engineRef.current) {
+      addObstaclesToWorld(engineRef.current, obstacles);
+    }
+  }, []);
+
+  const setWindZonesCallback = useCallback((zones: WindZone[]) => {
+    if (engineRef.current) {
+      setWindZones(engineRef.current, zones);
+    }
+  }, []);
+
   // Note: We intentionally don't clean up engineRef on unmount because
   // React StrictMode double-mounts components, which would destroy the engine
   // between the init effect and when play is called. The physics engine is
@@ -98,5 +115,7 @@ export function usePhysics(): UsePhysicsReturn {
     play,
     update,
     getPhysicsState,
+    setObstacles,
+    setWindZones: setWindZonesCallback,
   };
 }

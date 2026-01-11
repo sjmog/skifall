@@ -47,15 +47,12 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 export async function loadSkierSprites(character: SkierCharacter): Promise<SkierSprites> {
-  // Return cached sprites if available
   const cached = loadedSprites.get(character);
   if (cached) return cached;
 
-  // Return existing loading promise if in progress
   const existing = loadingPromises.get(character);
   if (existing) return existing;
 
-  // Start loading
   const urls = spriteUrls[character];
   const promise = Promise.all([
     loadImage(urls.head),
@@ -67,6 +64,10 @@ export async function loadSkierSprites(character: SkierCharacter): Promise<Skier
     loadedSprites.set(character, sprites);
     loadingPromises.delete(character);
     return sprites;
+  }).catch((error) => {
+    loadingPromises.delete(character);
+    console.error(`Failed to load sprites for character ${character}:`, error);
+    throw error;
   });
 
   loadingPromises.set(character, promise);
@@ -77,17 +78,19 @@ export function getSkierSprites(character: SkierCharacter): SkierSprites | null 
   return loadedSprites.get(character) ?? null;
 }
 
-// Preload all skier sprites
 export async function preloadAllSprites(): Promise<void> {
-  await Promise.all([
-    loadSkierSprites(1),
-    loadSkierSprites(2),
-    loadSkierSprites(3),
-    loadSkierSprites(4),
-  ]);
+  try {
+    await Promise.all([
+      loadSkierSprites(1),
+      loadSkierSprites(2),
+      loadSkierSprites(3),
+      loadSkierSprites(4),
+    ]);
+  } catch (error) {
+    console.error('Failed to preload sprites:', error);
+  }
 }
 
-// Get a character number based on player index (for multiplayer variety)
 export function getCharacterForPlayer(playerIndex: number): SkierCharacter {
   return ((playerIndex % 4) + 1) as SkierCharacter;
 }

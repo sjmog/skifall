@@ -1,6 +1,6 @@
 import type { Party, PartyKitServer, Connection } from "partykit/server";
 import { generatePlayerName } from "./player-names";
-import { generateLevel, type Level } from "./level-generator";
+import { generateLevel, type Level } from "../src/lib/level-generator";
 
 const PLAYER_COLORS = [
   "#E11D48", // red
@@ -94,7 +94,7 @@ export default class SkiFallServer implements PartyKitServer {
 
   startRound() {
     this.currentRound++;
-    this.level = generateLevel();
+    this.level = generateLevel(this.currentRound);
     this.roundStartTime = Date.now();
     this.lines.clear();
     
@@ -287,7 +287,7 @@ export default class SkiFallServer implements PartyKitServer {
       
       if (data.type === 'request-new-level') {
         // Dev mode: force new level
-        this.level = generateLevel();
+        this.level = generateLevel(this.currentRound);
         this.roundStartTime = Date.now();
         this.lines.clear();
         for (const p of this.players.values()) {

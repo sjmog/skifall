@@ -18,9 +18,8 @@ function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
 
-  // Preload character sprites on app start
   useEffect(() => {
-    preloadAllSprites();
+    preloadAllSprites().catch(console.error);
   }, []);
 
   // Handle browser back/forward buttons

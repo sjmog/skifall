@@ -21,17 +21,17 @@ interface UseGameStateReturn {
   resetRound: () => void;
 }
 
-export function useGameState(initialLevel?: Level | null): UseGameStateReturn {
-  const [level, setLevelState] = useState<Level>(() => initialLevel ?? generateLevel());
+export function useGameState(initialLevel?: Level | null, currentRound: number = 1): UseGameStateReturn {
+  const [level, setLevelState] = useState<Level>(() => initialLevel ?? generateLevel(currentRound));
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const pendingLevelRef = useRef<Level | null>(null);
   const [pendingLevel, setPendingLevel] = useState<Level | null>(null);
 
   const generateNextLevel = useCallback(() => {
-    const next = generateLevel();
+    const next = generateLevel(currentRound);
     pendingLevelRef.current = next;
     setPendingLevel(next);
-  }, []);
+  }, [currentRound]);
 
   const applyPendingLevel = useCallback(() => {
     if (pendingLevelRef.current) {
