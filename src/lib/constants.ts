@@ -5,7 +5,7 @@ export const GHOST_LERP_SPEED = 0.25;
 export const SKIER_BROADCAST_INTERVAL = 66; // ~15Hz
 
 export const GRAVITY = 1;
-export const CRASH_VELOCITY_THRESHOLD = 8; // m/s - body impacts below this won't cause crash
+export const CRASH_VELOCITY_THRESHOLD = 12; // m/s - body impacts below this won't cause crash
 
 export const SKIER_WIDTH = 20;
 export const SKIER_HEIGHT = 30;

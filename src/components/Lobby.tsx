@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Player } from '../hooks/usePartySocket';
+import type { GameMode } from '../types';
 import './Lobby.css';
 
 interface LobbyProps {
@@ -7,19 +8,28 @@ interface LobbyProps {
   players: Player[];
   localPlayerId: string | null;
   totalRounds: number;
+  gameMode: GameMode;
   roundOptions: number[];
   onSetReady: (isReady: boolean) => void;
   onSetTotalRounds: (rounds: number) => void;
+  onSetGameMode: (mode: GameMode) => void;
 }
+
+const GAME_MODE_TOOLTIPS: Record<GameMode, string> = {
+  downhill: "It's a race down official SkiFall levels - watch out for hazards!",
+  freestyle: 'Create your own slopes to get to the bottom before everyone else!',
+};
 
 export function Lobby({
   roomCode,
   players,
   localPlayerId,
   totalRounds,
+  gameMode,
   roundOptions,
   onSetReady,
   onSetTotalRounds,
+  onSetGameMode,
 }: LobbyProps) {
   const [copied, setCopied] = useState(false);
   const localPlayer = players.find(p => p.id === localPlayerId);
@@ -83,6 +93,29 @@ export function Lobby({
               ))}
             </div>
           </div>
+          <div className="setting-row">
+            <span className="setting-label">Game Mode</span>
+            <div className="toggle-selector">
+              <button
+                className={`toggle-option ${gameMode === 'downhill' ? 'selected' : ''}`}
+                onClick={() => onSetGameMode('downhill')}
+                disabled={isReady}
+                data-tooltip={GAME_MODE_TOOLTIPS.downhill}
+                title={GAME_MODE_TOOLTIPS.downhill}
+              >
+                Downhill
+              </button>
+              <button
+                className={`toggle-option ${gameMode === 'freestyle' ? 'selected' : ''}`}
+                onClick={() => onSetGameMode('freestyle')}
+                disabled={isReady}
+                data-tooltip={GAME_MODE_TOOLTIPS.freestyle}
+                title={GAME_MODE_TOOLTIPS.freestyle}
+              >
+                Freestyle
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="ready-section">
@@ -103,4 +136,3 @@ export function Lobby({
     </div>
   );
 }
-

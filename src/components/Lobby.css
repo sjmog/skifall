@@ -160,6 +160,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
+}
+
+.setting-row + .setting-row {
+  margin-top: 14px;
 }
 
 .setting-label {
@@ -171,7 +176,8 @@
   gap: 8px;
 }
 
-.round-option {
+.round-option,
+.toggle-option {
   width: 40px;
   height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -183,17 +189,61 @@
   transition: all 0.2s;
 }
 
-.round-option:hover:not(:disabled) {
+.toggle-selector {
+  display: flex;
+  gap: 8px;
+  overflow: visible;
+}
+
+.toggle-option {
+  position: relative;
+  width: auto;
+  min-width: 92px;
+  padding: 0 12px;
+}
+
+.toggle-option::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: 220px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.96);
+  color: white;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 20;
+}
+
+.toggle-option:hover::after,
+.toggle-option:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.round-option:hover:not(:disabled),
+.toggle-option:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.round-option.selected {
+.round-option.selected,
+.toggle-option.selected {
   background: #3b82f6;
   border-color: #3b82f6;
 }
 
-.round-option:disabled {
+.round-option:disabled,
+.toggle-option:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -233,4 +283,3 @@
   font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.5);
 }
-

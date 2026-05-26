@@ -16,8 +16,10 @@ const PLAYER_AVATARS = [
 
 const DEFAULT_TOTAL_ROUNDS = 5;
 const ROUND_OPTIONS = [3, 5, 7, 10];
+const DEFAULT_GAME_MODE: GameMode = 'downhill';
 
 type GamePhase = 'lobby' | 'playing' | 'round-complete' | 'game-over';
+type GameMode = 'downhill' | 'freestyle';
 
 interface RoundResult {
   finishTime: number | null; // null = DNF
@@ -63,6 +65,7 @@ export default class SkiFallServer implements PartyKitServer {
   roundStartTime: number | null = null;
   currentRound: number = 0;
   totalRounds: number = DEFAULT_TOTAL_ROUNDS;
+  gameMode: GameMode = DEFAULT_GAME_MODE;
 
   constructor(readonly room: Party) {}
 
@@ -79,6 +82,7 @@ export default class SkiFallServer implements PartyKitServer {
       roundStartTime: this.roundStartTime,
       currentRound: this.currentRound,
       totalRounds: this.totalRounds,
+      gameMode: this.gameMode,
     }));
   }
 
@@ -94,7 +98,7 @@ export default class SkiFallServer implements PartyKitServer {
 
   startRound() {
     this.currentRound++;
-    this.level = generateLevel();
+    this.level = generateLevel(this.gameMode === 'downhill', this.currentRound - 1);
     this.roundStartTime = Date.now();
     this.lines.clear();
     
@@ -175,6 +179,7 @@ export default class SkiFallServer implements PartyKitServer {
       roundStartTime: this.roundStartTime,
       currentRound: this.currentRound,
       totalRounds: this.totalRounds,
+      gameMode: this.gameMode,
       lines: Array.from(this.lines.values()),
       roundOptions: ROUND_OPTIONS,
     }));
@@ -255,6 +260,26 @@ export default class SkiFallServer implements PartyKitServer {
         }
         return;
       }
+
+      if (data.type === 'set-game-mode') {
+        if (
+          this.gamePhase === 'lobby' &&
+          !player.isReady &&
+          (data.gameMode === 'downhill' || data.gameMode === 'freestyle')
+        ) {
+          this.gameMode = data.gameMode;
+          this.broadcastGameState();
+        }
+        return;
+      }
+
+      if (data.type === 'set-use-pregenerated-levels') {
+        if (this.gamePhase === 'lobby' && !player.isReady) {
+          this.gameMode = data.usePregeneratedLevels ? 'downhill' : 'freestyle';
+          this.broadcastGameState();
+        }
+        return;
+      }
       
       if (data.type === 'player-finished') {
         if (this.gamePhase === 'playing' && !player.isSpectating && !player.roundResult) {
@@ -287,7 +312,7 @@ export default class SkiFallServer implements PartyKitServer {
       
       if (data.type === 'request-new-level') {
         // Dev mode: force new level
-        this.level = generateLevel();
+        this.level = generateLevel(this.gameMode === 'downhill', this.currentRound);
         this.roundStartTime = Date.now();
         this.lines.clear();
         for (const p of this.players.values()) {

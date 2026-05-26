@@ -42,11 +42,13 @@ function App() {
     roundStartTime,
     currentRound,
     totalRounds,
+    gameMode,
     roundOptions,
     remoteLines,
     remoteSkiers,
     setReady,
     setTotalRoundsOption,
+    setGameMode,
     sendPlayerFinished,
     playAgain,
     requestNewLevel,
@@ -83,9 +85,11 @@ function App() {
           players={players}
           localPlayerId={playerId}
           totalRounds={totalRounds}
+          gameMode={gameMode}
           roundOptions={roundOptions}
           onSetReady={setReady}
           onSetTotalRounds={setTotalRoundsOption}
+          onSetGameMode={setGameMode}
         />
       </>
     );

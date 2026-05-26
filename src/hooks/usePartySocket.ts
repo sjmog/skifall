@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import PartySocket from 'partysocket';
 import type { Level } from '../lib/level-generator';
-import type { Line, SkierRenderState, SkierState } from '../types';
+import type { GameMode, Line, SkierRenderState, SkierState } from '../types';
 
 export type GamePhase = 'lobby' | 'playing' | 'round-complete' | 'game-over';
 
@@ -45,6 +45,7 @@ export function usePartySocket(roomId: string | null) {
   const [roundStartTime, setRoundStartTime] = useState<number | null>(null);
   const [currentRound, setCurrentRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(5);
+  const [gameMode, setGameModeState] = useState<GameMode>('downhill');
   const [roundOptions, setRoundOptions] = useState<number[]>([3, 5, 7, 10]);
   const [remoteLines, setRemoteLines] = useState<RemoteLine[]>([]);
   const [remoteSkiers, setRemoteSkiers] = useState<Map<string, RemoteSkier>>(new Map());
@@ -92,6 +93,7 @@ export function usePartySocket(roomId: string | null) {
             if (data.roundStartTime) setRoundStartTime(data.roundStartTime);
             setCurrentRound(data.currentRound ?? 0);
             setTotalRounds(data.totalRounds ?? 5);
+            setGameModeState(data.gameMode ?? (data.usePregeneratedLevels === false ? 'freestyle' : 'downhill'));
             if (data.roundOptions) setRoundOptions(data.roundOptions);
             if (data.lines) setRemoteLines(data.lines);
             break;
@@ -103,6 +105,7 @@ export function usePartySocket(roomId: string | null) {
             if (data.roundStartTime) setRoundStartTime(data.roundStartTime);
             setCurrentRound(data.currentRound ?? 0);
             setTotalRounds(data.totalRounds ?? 5);
+            setGameModeState(data.gameMode ?? (data.usePregeneratedLevels === false ? 'freestyle' : 'downhill'));
             if (data.gamePhase === 'playing') {
               setRemoteLines([]);
               setRemoteSkiers(new Map());
@@ -193,6 +196,10 @@ export function usePartySocket(roomId: string | null) {
     send({ type: 'set-total-rounds', totalRounds });
   }, [send]);
 
+  const setGameMode = useCallback((gameMode: GameMode) => {
+    send({ type: 'set-game-mode', gameMode });
+  }, [send]);
+
   const sendPlayerFinished = useCallback((finishTime: number | null, skillScore: number = 0) => {
     send({ type: 'player-finished', finishTime, skillScore });
   }, [send]);
@@ -237,11 +244,13 @@ export function usePartySocket(roomId: string | null) {
     roundStartTime,
     currentRound,
     totalRounds,
+    gameMode,
     roundOptions,
     remoteLines,
     remoteSkiers,
     setReady,
     setTotalRoundsOption,
+    setGameMode,
     sendPlayerFinished,
     playAgain,
     requestNewLevel,

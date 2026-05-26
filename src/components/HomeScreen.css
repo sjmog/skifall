@@ -435,7 +435,15 @@
   justify-content: center;
 }
 
-.lobby-round-btn {
+.lobby-toggle-options {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  overflow: visible;
+}
+
+.lobby-round-btn,
+.lobby-toggle-btn {
   width: 48px;
   height: 48px;
   border: 2px solid rgba(255, 255, 255, 0.2);
@@ -449,19 +457,66 @@
   transition: all 0.2s;
 }
 
-.lobby-round-btn:hover:not(:disabled) {
+.lobby-toggle-btn {
+  position: relative;
+  width: auto;
+  min-width: 116px;
+  padding: 0 16px;
+  font-size: 15px;
+}
+
+.lobby-toggle-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  width: 230px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.96);
+  color: white;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+  text-align: center;
+  white-space: normal;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 20;
+}
+
+.lobby-toggle-btn:hover::after,
+.lobby-toggle-btn:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.lobby-round-btn:hover:not(:disabled),
+.lobby-toggle-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.4);
 }
 
-.lobby-round-btn.selected {
+.lobby-round-btn.selected,
+.lobby-toggle-btn.selected {
   background: #3b82f6;
   border-color: #3b82f6;
 }
 
-.lobby-round-btn:disabled {
+.lobby-round-btn:disabled,
+.lobby-toggle-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.lobby-setting-divider {
+  height: 1px;
+  margin: 16px 0;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .lobby-ready-button {

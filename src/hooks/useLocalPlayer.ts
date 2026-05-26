@@ -22,6 +22,7 @@ interface UseLocalPlayerActions {
   eraseLine: (point: Point) => string | null;
   getLineAtPoint: (point: Point) => string | null;
   clearLines: () => void;
+  setTerrainLines: (lines: Line[]) => void;
   play: () => void;
   reset: (spawnX: number, spawnY: number) => void;
   update: (delta: number) => SkierRenderState;
@@ -130,6 +131,7 @@ export function useLocalPlayer(): UseLocalPlayerReturn {
     eraseLine,
     getLineAtPoint: drawing.getLineAtPoint,
     clearLines: drawing.clearLines,
+    setTerrainLines: physics.setTerrainLines,
     play,
     reset,
     update,
@@ -139,4 +141,3 @@ export function useLocalPlayer(): UseLocalPlayerReturn {
 
   return { player, actions };
 }
-

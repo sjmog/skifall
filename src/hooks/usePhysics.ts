@@ -18,6 +18,7 @@ interface UsePhysicsReturn {
   initPhysics: (spawnX: number, spawnY: number) => void;
   addLine: (line: Line) => void;
   removeLine: (lineId: string) => void;
+  setTerrainLines: (lines: Line[]) => void;
   getLineIds: () => string[];
   reset: () => void;
   play: () => void;
@@ -27,6 +28,7 @@ interface UsePhysicsReturn {
 
 export function usePhysics(): UsePhysicsReturn {
   const engineRef = useRef<PhysicsEngine | null>(null);
+  const terrainLineIdsRef = useRef<Set<string>>(new Set());
 
   const initPhysics = useCallback((spawnX: number, spawnY: number) => {
     engineRef.current = createPhysicsEngine(spawnX, spawnY);
@@ -44,9 +46,25 @@ export function usePhysics(): UsePhysicsReturn {
     }
   }, []);
 
+  const setTerrainLines = useCallback((lines: Line[]) => {
+    if (!engineRef.current) return;
+
+    for (const lineId of terrainLineIdsRef.current) {
+      removeLineFromWorld(engineRef.current, lineId);
+    }
+
+    terrainLineIdsRef.current = new Set(lines.map((line) => line.id));
+
+    for (const line of lines) {
+      addLineToWorld(engineRef.current, line);
+    }
+  }, []);
+
   const getLineIds = useCallback((): string[] => {
     if (engineRef.current) {
-      return Array.from(engineRef.current.lineFixtures.keys());
+      return Array.from(engineRef.current.lineFixtures.keys()).filter(
+        (id) => !terrainLineIdsRef.current.has(id)
+      );
     }
     return [];
   }, []);
@@ -93,6 +111,7 @@ export function usePhysics(): UsePhysicsReturn {
     initPhysics,
     addLine,
     removeLine,
+    setTerrainLines,
     getLineIds,
     reset,
     play,
