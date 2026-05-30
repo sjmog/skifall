@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { HomeScreen } from "./components/HomeScreen";
 import { GameCanvas } from "./components/GameCanvas";
+import { LevelDesigner } from "./components/LevelDesigner";
 import { PlayerAvatars } from "./components/PlayerAvatars";
 import { usePartySocket } from "./hooks/usePartySocket";
 import { preloadAllSprites } from "./lib/sprites";
@@ -8,6 +9,8 @@ import { audioManager } from "./lib/audio";
 import "./App.css";
 
 function App() {
+  const isLevelDesignerRoute = window.location.pathname.replace(/\/$/, '') === '/level-designer';
+
   const getInitialRoom = () => {
     const hash = window.location.hash;
     const match = hash.match(/^#room=(.+)$/);
@@ -59,9 +62,18 @@ function App() {
 
   // Switch music based on current screen
   useEffect(() => {
+    if (isLevelDesignerRoute) {
+      audioManager.play(null);
+      return;
+    }
+
     const isInGame = roomId && isConnected && gamePhase !== 'lobby';
     audioManager.play(isInGame ? 'game' : 'start');
-  }, [roomId, isConnected, gamePhase]);
+  }, [isLevelDesignerRoute, roomId, isConnected, gamePhase]);
+
+  if (isLevelDesignerRoute) {
+    return <LevelDesigner />;
+  }
 
   const handleJoinRoom = (code: string) => {
     window.history.pushState(null, '', `#room=${code}`);

@@ -11,9 +11,46 @@ export interface LevelFeature {
   points: Point[];
 }
 
+export const DEFAULT_LEVEL_OWNER = 'ADMIN';
+const DEFAULT_LEVEL_VERSION = 1;
+const INITIAL_LEVEL_BANK_DATE = '2026-05-30';
+
+export type LevelDifficulty = 'easy' | 'medium' | 'hard';
+export type LevelStatus = 'unfinished' | 'finished' | 'draft' | 'published' | 'archived';
+
+export interface LevelImage {
+  src: string;
+  alt: string;
+  kind: 'full-level-screenshot';
+}
+
+export interface LevelMetadata {
+  levelId: string;
+  name: string;
+  image: LevelImage;
+  owners: string[];
+  difficulty?: LevelDifficulty;
+  status: LevelStatus;
+  version: number;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  description?: string;
+}
+
+export interface LevelData {
+  start: Point;
+  finish: Point;
+  blackLines: LevelFeature[];
+  greyLines: LevelFeature[];
+}
+
 export interface PregeneratedLevelTemplate {
   id: string;
   name: string;
+  owners: string[];
+  difficulty: LevelDifficulty;
+  metadata: LevelMetadata;
   start: Point;
   finish: Point;
   features: LevelFeature[];
@@ -22,10 +59,74 @@ export interface PregeneratedLevelTemplate {
 const solid = (id: string, points: Point[]): LevelFeature => ({ id, kind: 'solid', points });
 const scenery = (id: string, points: Point[]): LevelFeature => ({ id, kind: 'scenery', points });
 
+type LevelTemplateSeed = Omit<PregeneratedLevelTemplate, 'owners' | 'metadata'> & {
+  owners?: string[];
+  metadata?: Partial<Omit<LevelMetadata, 'levelId' | 'name' | 'owners' | 'difficulty'>>;
+};
+
+const levelTemplate = ({
+  owners = [DEFAULT_LEVEL_OWNER],
+  metadata,
+  ...template
+}: LevelTemplateSeed): PregeneratedLevelTemplate => {
+  const image = metadata?.image ?? getDefaultLevelImage(template.id, template.name);
+
+  return {
+    ...template,
+    owners,
+    metadata: {
+      levelId: template.id,
+      name: template.name,
+      image,
+      owners,
+      difficulty: template.difficulty,
+      status: metadata?.status ?? 'published',
+      version: metadata?.version ?? DEFAULT_LEVEL_VERSION,
+      tags: metadata?.tags ?? [],
+      createdAt: metadata?.createdAt ?? INITIAL_LEVEL_BANK_DATE,
+      updatedAt: metadata?.updatedAt ?? INITIAL_LEVEL_BANK_DATE,
+      description: metadata?.description,
+    },
+  };
+};
+
+export function getDefaultLevelImage(levelId: string, levelName: string): LevelImage {
+  return {
+    src: `/levels/${levelId}/full-level.png`,
+    alt: `${levelName} full level screenshot`,
+    kind: 'full-level-screenshot',
+  };
+}
+
+export function getLevelData(template: PregeneratedLevelTemplate): LevelData {
+  return {
+    start: template.start,
+    finish: template.finish,
+    blackLines: template.features.filter((feature) => feature.kind === 'solid'),
+    greyLines: template.features.filter((feature) => feature.kind === 'scenery'),
+  };
+}
+
+export function getLevelMetadata(template: PregeneratedLevelTemplate): LevelMetadata {
+  return {
+    ...template.metadata,
+    image: { ...template.metadata.image },
+    owners: [...template.metadata.owners],
+    tags: [...template.metadata.tags],
+  };
+}
+
+export function getLevelsByDifficulty(
+  difficulty: LevelDifficulty
+): PregeneratedLevelTemplate[] {
+  return PREGENERATED_LEVELS.filter((level) => level.difficulty === difficulty);
+}
+
 export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
-  {
+  levelTemplate({
     id: 'alpine-s-curves',
     name: 'Alpine S-Curves',
+    difficulty: 'easy',
     start: { x: 320, y: 135 },
     finish: { x: 1540, y: 1325 },
     features: [
@@ -36,10 +137,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('alpine-s-curves-ridge-1', [{ x: 170, y: 280 }, { x: 360, y: 230 }, { x: 560, y: 270 }]),
       scenery('alpine-s-curves-ridge-2', [{ x: 920, y: 720 }, { x: 1100, y: 640 }, { x: 1280, y: 700 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'glacier-steps',
     name: 'Glacier Steps',
+    difficulty: 'easy',
     start: { x: 1180, y: 120 },
     finish: { x: 560, y: 1330 },
     features: [
@@ -50,10 +152,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('glacier-steps-crevasse-1', [{ x: 315, y: 605 }, { x: 510, y: 575 }, { x: 690, y: 600 }]),
       scenery('glacier-steps-crevasse-2', [{ x: 1210, y: 1010 }, { x: 1395, y: 950 }, { x: 1580, y: 1015 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'pine-chute',
     name: 'Pine Chute',
+    difficulty: 'easy',
     start: { x: 465, y: 155 },
     finish: { x: 1390, y: 1295 },
     features: [
@@ -65,10 +168,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('pine-chute-trees-2', [{ x: 230, y: 840 }, { x: 315, y: 790 }, { x: 420, y: 825 }]),
       scenery('pine-chute-trees-3', [{ x: 1380, y: 920 }, { x: 1495, y: 875 }, { x: 1600, y: 920 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'switchback-bowl',
     name: 'Switchback Bowl',
+    difficulty: 'medium',
     start: { x: 1540, y: 145 },
     finish: { x: 430, y: 1310 },
     features: [
@@ -79,10 +183,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('switchback-bowl-backwall', [{ x: 575, y: 260 }, { x: 760, y: 205 }, { x: 980, y: 250 }]),
       scenery('switchback-bowl-shadow', [{ x: 1360, y: 950 }, { x: 1540, y: 890 }, { x: 1700, y: 950 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'powder-gully',
     name: 'Powder Gully',
+    difficulty: 'medium',
     start: { x: 850, y: 120 },
     finish: { x: 1010, y: 1340 },
     features: [
@@ -93,10 +198,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('powder-gully-snowfield-1', [{ x: 355, y: 560 }, { x: 485, y: 505 }, { x: 615, y: 555 }]),
       scenery('powder-gully-snowfield-2', [{ x: 1225, y: 735 }, { x: 1385, y: 690 }, { x: 1525, y: 730 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'ridge-traverse',
     name: 'Ridge Traverse',
+    difficulty: 'medium',
     start: { x: 250, y: 175 },
     finish: { x: 1695, y: 1290 },
     features: [
@@ -107,10 +213,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('ridge-traverse-peak-1', [{ x: 900, y: 310 }, { x: 1035, y: 240 }, { x: 1190, y: 310 }]),
       scenery('ridge-traverse-peak-2', [{ x: 215, y: 970 }, { x: 405, y: 910 }, { x: 570, y: 965 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'icefall-slalom',
     name: 'Icefall Slalom',
+    difficulty: 'medium',
     start: { x: 1360, y: 150 },
     finish: { x: 720, y: 1325 },
     features: [
@@ -121,10 +228,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('icefall-slalom-crack-1', [{ x: 460, y: 450 }, { x: 590, y: 390 }, { x: 725, y: 445 }]),
       scenery('icefall-slalom-crack-2', [{ x: 1380, y: 675 }, { x: 1530, y: 620 }, { x: 1660, y: 675 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'halfpipe-run',
     name: 'Halfpipe Run',
+    difficulty: 'hard',
     start: { x: 985, y: 135 },
     finish: { x: 1080, y: 1340 },
     features: [
@@ -135,10 +243,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('halfpipe-run-shade-left', [{ x: 435, y: 690 }, { x: 560, y: 650 }, { x: 685, y: 690 }]),
       scenery('halfpipe-run-shade-right', [{ x: 1310, y: 930 }, { x: 1460, y: 875 }, { x: 1600, y: 930 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'avalanche-basin',
     name: 'Avalanche Basin',
+    difficulty: 'hard',
     start: { x: 620, y: 145 },
     finish: { x: 1510, y: 1340 },
     features: [
@@ -149,10 +258,11 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('avalanche-basin-slab-1', [{ x: 270, y: 565 }, { x: 430, y: 515 }, { x: 610, y: 560 }]),
       scenery('avalanche-basin-slab-2', [{ x: 1245, y: 370 }, { x: 1430, y: 305 }, { x: 1615, y: 370 }]),
     ],
-  },
-  {
+  }),
+  levelTemplate({
     id: 'summit-canyon',
     name: 'Summit Canyon',
+    difficulty: 'hard',
     start: { x: 1710, y: 160 },
     finish: { x: 410, y: 1335 },
     features: [
@@ -163,7 +273,7 @@ export const PREGENERATED_LEVELS: PregeneratedLevelTemplate[] = [
       scenery('summit-canyon-cliff-1', [{ x: 565, y: 445 }, { x: 735, y: 385 }, { x: 920, y: 440 }]),
       scenery('summit-canyon-cliff-2', [{ x: 1515, y: 1110 }, { x: 1680, y: 1055 }, { x: 1810, y: 1105 }]),
     ],
-  },
+  }),
 ];
 
 export const PREGENERATED_LEVEL_COUNT = PREGENERATED_LEVELS.length;

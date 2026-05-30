@@ -1,6 +1,6 @@
 import type { Party, PartyKitServer, Connection } from "partykit/server";
 import { generatePlayerName } from "./player-names";
-import { generateLevel, type Level } from "./level-generator";
+import { generateLevel, type Level, type LevelDifficulty } from "./level-generator";
 
 const PLAYER_COLORS = [
   "#E11D48", // red
@@ -56,6 +56,17 @@ function calculateScore(finishTime: number | null, skillScore: number = 0): numb
   return timeScore + skillScore;
 }
 
+function getDifficultyForRound(
+  currentRound: number,
+  totalRounds: number
+): LevelDifficulty {
+  const roundProgress = (currentRound - 1) / Math.max(totalRounds - 1, 1);
+
+  if (roundProgress < 1 / 3) return 'easy';
+  if (roundProgress < 2 / 3) return 'medium';
+  return 'hard';
+}
+
 export default class SkiFallServer implements PartyKitServer {
   players: Map<string, PlayerState> = new Map();
   lines: Map<string, Line> = new Map();
@@ -98,7 +109,10 @@ export default class SkiFallServer implements PartyKitServer {
 
   startRound() {
     this.currentRound++;
-    this.level = generateLevel(this.gameMode === 'downhill', this.currentRound - 1);
+    const difficulty = this.gameMode === 'downhill'
+      ? getDifficultyForRound(this.currentRound, this.totalRounds)
+      : undefined;
+    this.level = generateLevel(this.gameMode === 'downhill', this.currentRound - 1, difficulty);
     this.roundStartTime = Date.now();
     this.lines.clear();
     
@@ -312,7 +326,10 @@ export default class SkiFallServer implements PartyKitServer {
       
       if (data.type === 'request-new-level') {
         // Dev mode: force new level
-        this.level = generateLevel(this.gameMode === 'downhill', this.currentRound);
+        const difficulty = this.gameMode === 'downhill'
+          ? getDifficultyForRound(Math.max(this.currentRound, 1), this.totalRounds)
+          : undefined;
+        this.level = generateLevel(this.gameMode === 'downhill', this.currentRound, difficulty);
         this.roundStartTime = Date.now();
         this.lines.clear();
         for (const p of this.players.values()) {

@@ -13,12 +13,12 @@ export const SKI_WIDTH = SKIER_WIDTH * 1.5;
 export const SKI_HEIGHT = 4;
 
 // Sprite rendering scale (pixels in sprite -> world units)
-const SPRITE_SCALE = 0.1;
+export const SKIER_SPRITE_SCALE = 0.1;
 
 // Offsets to align sprite visual centers with physics body centers
 // The sprites are designed as stacking parts, but physics bodies have different centers
 // Negative Y moves sprite up, positive Y moves sprite down
-const SPRITE_OFFSETS = {
+export const SKIER_SPRITE_OFFSETS = {
   head: { x: 0, y: 0 },   // Head sprite - position above physics center (hat is tall)
   torso: { x: -5, y: 5 },  // Torso - shift up (sprite includes shoulders above center)
   legs: { x: 0, y: 0 },    // Legs - shift up (sprite has waistband above center)
@@ -67,8 +67,8 @@ function drawSpritePart(
   offsetX = 0,
   offsetY = 0
 ) {
-  const w = img.width * SPRITE_SCALE * scale;
-  const h = img.height * SPRITE_SCALE * scale;
+  const w = img.width * SKIER_SPRITE_SCALE * scale;
+  const h = img.height * SKIER_SPRITE_SCALE * scale;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
@@ -122,10 +122,10 @@ export function drawSkier(ctx: CanvasRenderingContext2D, state: SkierRenderState
 
   if (sprites) {
     // Draw with sprites (back to front: skis, legs, torso, head)
-    drawSpritePart(ctx, sprites.skis, skis.x, skis.y, skis.angle, scale, SPRITE_OFFSETS.skis.x, SPRITE_OFFSETS.skis.y);
-    drawSpritePart(ctx, sprites.legs, lower.x, lower.y, lower.angle, scale, SPRITE_OFFSETS.legs.x, SPRITE_OFFSETS.legs.y);
-    drawSpritePart(ctx, sprites.torso, upper.x, upper.y, upper.angle, scale, SPRITE_OFFSETS.torso.x, SPRITE_OFFSETS.torso.y);
-    drawSpritePart(ctx, sprites.head, head.x, head.y, head.angle, scale, SPRITE_OFFSETS.head.x, SPRITE_OFFSETS.head.y);
+    drawSpritePart(ctx, sprites.skis, skis.x, skis.y, skis.angle, scale, SKIER_SPRITE_OFFSETS.skis.x, SKIER_SPRITE_OFFSETS.skis.y);
+    drawSpritePart(ctx, sprites.legs, lower.x, lower.y, lower.angle, scale, SKIER_SPRITE_OFFSETS.legs.x, SKIER_SPRITE_OFFSETS.legs.y);
+    drawSpritePart(ctx, sprites.torso, upper.x, upper.y, upper.angle, scale, SKIER_SPRITE_OFFSETS.torso.x, SKIER_SPRITE_OFFSETS.torso.y);
+    drawSpritePart(ctx, sprites.head, head.x, head.y, head.angle, scale, SKIER_SPRITE_OFFSETS.head.x, SKIER_SPRITE_OFFSETS.head.y);
   } else {
     // Fallback to shapes if sprites not loaded
     drawFallbackPart(ctx, skis.x, skis.y, skis.angle, SKI_WIDTH, SKI_HEIGHT, COLORS.skis);
@@ -154,10 +154,10 @@ export function drawGhostSkier(
 
   if (sprites) {
     // Draw sprites for ghost (with reduced opacity)
-    drawSpritePart(ctx, sprites.skis, skis.x, skis.y, skis.angle, 1, SPRITE_OFFSETS.skis.x, SPRITE_OFFSETS.skis.y);
-    drawSpritePart(ctx, sprites.legs, lower.x, lower.y, lower.angle, 1, SPRITE_OFFSETS.legs.x, SPRITE_OFFSETS.legs.y);
-    drawSpritePart(ctx, sprites.torso, upper.x, upper.y, upper.angle, 1, SPRITE_OFFSETS.torso.x, SPRITE_OFFSETS.torso.y);
-    drawSpritePart(ctx, sprites.head, head.x, head.y, head.angle, 1, SPRITE_OFFSETS.head.x, SPRITE_OFFSETS.head.y);
+    drawSpritePart(ctx, sprites.skis, skis.x, skis.y, skis.angle, 1, SKIER_SPRITE_OFFSETS.skis.x, SKIER_SPRITE_OFFSETS.skis.y);
+    drawSpritePart(ctx, sprites.legs, lower.x, lower.y, lower.angle, 1, SKIER_SPRITE_OFFSETS.legs.x, SKIER_SPRITE_OFFSETS.legs.y);
+    drawSpritePart(ctx, sprites.torso, upper.x, upper.y, upper.angle, 1, SKIER_SPRITE_OFFSETS.torso.x, SKIER_SPRITE_OFFSETS.torso.y);
+    drawSpritePart(ctx, sprites.head, head.x, head.y, head.angle, 1, SKIER_SPRITE_OFFSETS.head.x, SKIER_SPRITE_OFFSETS.head.y);
   } else {
     // Fallback to colored shapes
     drawFallbackPart(ctx, skis.x, skis.y, skis.angle, SKI_WIDTH, SKI_HEIGHT, color);
