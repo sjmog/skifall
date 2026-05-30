@@ -1,16 +1,26 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   DEFAULT_LEVEL_OWNER,
-  PREGENERATED_LEVELS,
   getDefaultLevelImage,
-  getLevelData,
-  getLevelMetadata,
-  type LevelData,
   type LevelDifficulty,
   type LevelFeature,
   type LevelMetadata,
   type Point,
 } from '../lib/pregenerated-levels';
+import {
+  LEVEL_BANK_SITE_NAME,
+  cloneLevelBankLevel,
+  createSeedLevelBank,
+  type LevelBankDocument,
+  type LevelBankLevel,
+  type LevelBankLevelData,
+  type LevelBankResponse,
+} from '../lib/level-bank';
+import {
+  deleteLevelFromLevelBank,
+  loadLevelBank,
+  saveLevelToLevelBank,
+} from '../lib/level-bank-client';
 import {
   addLineToWorld,
   createPhysicsEngine,
@@ -32,20 +42,12 @@ import eraserIcon from '../assets/images/eraser.png';
 import startButtonImage from '../assets/images/start.png';
 import './LevelDesigner.css';
 
-type EditableLevelData = {
-  start: Point | null;
-  finish: Point | null;
-  blackLines: LevelFeature[];
-  greyLines: LevelFeature[];
-};
+type EditableLevelData = LevelBankLevelData;
 
-type StoredUserLevel = {
-  metadata: LevelMetadata;
-  data: EditableLevelData;
-};
+type StoredUserLevel = LevelBankLevel;
 
 type DesignerLevel = StoredUserLevel & {
-  source: 'official' | 'local';
+  source: 'netlify-blobs' | 'static-seed';
 };
 
 type DeleteTarget = DesignerLevel | null;
@@ -59,8 +61,6 @@ type TestStatus = 'ready' | 'running' | 'paused';
 type TestBanner = 'complete' | 'crashed' | null;
 type MetadataDifficulty = LevelDifficulty | '';
 
-const LOCAL_LEVELS_KEY = 'skifall.levelDesigner.levels';
-const DELETED_LEVELS_KEY = 'skifall.levelDesigner.deletedOfficialLevels';
 const LEVEL_WIDTH = 19200;
 const LEVEL_HEIGHT = 14000;
 const MIN_VIEW_WIDTH = 420;
@@ -82,13 +82,6 @@ const createEmptyLevelData = (): EditableLevelData => ({
   finish: null,
   blackLines: [],
   greyLines: [],
-});
-
-const toEditableData = (data: LevelData): EditableLevelData => ({
-  start: { ...data.start },
-  finish: { ...data.finish },
-  blackLines: data.blackLines.map(cloneFeature),
-  greyLines: data.greyLines.map(cloneFeature),
 });
 
 function createLevelId(name: string): string {
@@ -155,78 +148,6 @@ function snapshotToLevel(snapshot: LevelSnapshot): StoredUserLevel {
       tags: [...snapshot.metadata.tags],
     },
     data: cloneEditableData(snapshot.data),
-  };
-}
-
-function normalizeStoredLevel(level: StoredUserLevel): StoredUserLevel {
-  return {
-    metadata: {
-      ...level.metadata,
-      owners: level.metadata.owners ?? [DEFAULT_LEVEL_OWNER],
-      tags: level.metadata.tags ?? [],
-      status: level.metadata.status ?? 'unfinished',
-      image: level.metadata.image ?? getDefaultLevelImage(level.metadata.levelId, level.metadata.name),
-    },
-    data: {
-      start: level.data.start ?? null,
-      finish: level.data.finish ?? null,
-      blackLines: level.data.blackLines ?? [],
-      greyLines: level.data.greyLines ?? [],
-    },
-  };
-}
-
-function loadLocalLevels(): StoredUserLevel[] {
-  try {
-    const raw = window.localStorage.getItem(LOCAL_LEVELS_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(normalizeStoredLevel) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalLevels(levels: StoredUserLevel[]) {
-  window.localStorage.setItem(LOCAL_LEVELS_KEY, JSON.stringify(levels));
-}
-
-function loadDeletedOfficialLevelIds(): string[] {
-  try {
-    const raw = window.localStorage.getItem(DELETED_LEVELS_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveDeletedOfficialLevelIds(levelIds: string[]) {
-  window.localStorage.setItem(DELETED_LEVELS_KEY, JSON.stringify(levelIds));
-}
-
-function isOfficialLevelId(levelId: string): boolean {
-  return PREGENERATED_LEVELS.some((template) => template.id === levelId);
-}
-
-function cloneDesignerLevelForEditing(level: DesignerLevel): StoredUserLevel {
-  const date = today();
-
-  return {
-    metadata: {
-      ...level.metadata,
-      image: { ...level.metadata.image },
-      owners: [...level.metadata.owners],
-      tags: level.source === 'official'
-        ? Array.from(new Set([...level.metadata.tags, 'admin-edit']))
-        : [...level.metadata.tags],
-      status: level.source === 'official' ? 'draft' : level.metadata.status,
-      updatedAt: date,
-    },
-    data: cloneEditableData(level.data),
   };
 }
 
@@ -474,8 +395,10 @@ function ToolGroupHeading({ icon, children }: { icon: ReactNode; children: React
 }
 
 export function LevelDesigner() {
-  const [localLevels, setLocalLevels] = useState<StoredUserLevel[]>(loadLocalLevels);
-  const [deletedOfficialLevelIds, setDeletedOfficialLevelIds] = useState<string[]>(loadDeletedOfficialLevelIds);
+  const [levelBankDocument, setLevelBankDocument] = useState<LevelBankDocument>(() => createSeedLevelBank());
+  const [levelBankResponse, setLevelBankResponse] = useState<LevelBankResponse | null>(null);
+  const [levelBankLoading, setLevelBankLoading] = useState(true);
+  const [levelBankSaving, setLevelBankSaving] = useState(false);
   const [screen, setScreen] = useState<DesignerScreen>('menu');
   const [activeLevel, setActiveLevel] = useState<StoredUserLevel | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -507,22 +430,34 @@ export function LevelDesigner() {
   const testRunning = editorMode === 'test' && testStatus === 'running';
 
   const levels = useMemo<DesignerLevel[]>(() => {
-    const localLevelIds = new Set(localLevels.map((level) => level.metadata.levelId));
-    const deletedOfficialIds = new Set(deletedOfficialLevelIds);
-    const officialLevels = PREGENERATED_LEVELS
-      .filter((template) => !deletedOfficialIds.has(template.id) && !localLevelIds.has(template.id))
-      .map((template) => ({
-        metadata: getLevelMetadata(template),
-        data: toEditableData(getLevelData(template)),
-        source: 'official' as const,
-      }));
-    const userLevels = localLevels.map((level) => ({
-      ...level,
-      source: 'local' as const,
+    const source = levelBankResponse?.source ?? 'static-seed';
+    return levelBankDocument.levels.map((level) => ({
+      ...cloneLevelBankLevel(level),
+      source,
     }));
+  }, [levelBankDocument, levelBankResponse?.source]);
 
-    return [...userLevels, ...officialLevels];
-  }, [deletedOfficialLevelIds, localLevels]);
+  useEffect(() => {
+    let ignore = false;
+
+    async function fetchLevelBank() {
+      setLevelBankLoading(true);
+      const response = await loadLevelBank();
+      if (ignore) return;
+
+      setLevelBankResponse(response);
+      setLevelBankDocument(response.document);
+      setLevelBankLoading(false);
+      if (!response.serverAvailable) {
+        setToast('Using bundled seed levels until the Netlify level bank is available.');
+      }
+    }
+
+    void fetchLevelBank();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -621,27 +556,8 @@ export function LevelDesigner() {
     return () => window.cancelAnimationFrame(frameId);
   }, [activeLevel, testRunning]);
 
-  const persistLocalLevels = (levelsToSave: StoredUserLevel[]) => {
-    setLocalLevels(levelsToSave);
-    saveLocalLevels(levelsToSave);
-  };
-
-  const persistDeletedOfficialLevelIds = (levelIds: string[]) => {
-    const uniqueLevelIds = Array.from(new Set(levelIds));
-    setDeletedOfficialLevelIds(uniqueLevelIds);
-    saveDeletedOfficialLevelIds(uniqueLevelIds);
-  };
-
-  const upsertLevel = (level: StoredUserLevel) => {
-    const nextLevels = [
-      level,
-      ...localLevels.filter((item) => item.metadata.levelId !== level.metadata.levelId),
-    ];
-    persistLocalLevels(nextLevels);
-  };
-
   const editLevelFromOverview = (level: DesignerLevel) => {
-    const editableLevel = cloneDesignerLevelForEditing(level);
+    const editableLevel = cloneLevelBankLevel(level);
 
     setActiveLevel(editableLevel);
     setViewBox(getFocusedViewBox(editableLevel.data));
@@ -653,29 +569,48 @@ export function LevelDesigner() {
     setTestSkier(null);
     clearDraftAction();
     setScreen('editor');
-    if (level.source === 'official') {
-      setToast('Editing an ADMIN level as a local draft.');
+  };
+
+  const applyLevelBankResponse = (response: LevelBankResponse) => {
+    setLevelBankResponse(response);
+    setLevelBankDocument(response.document);
+  };
+
+  const saveLevelToServer = async (level: StoredUserLevel): Promise<LevelBankResponse | null> => {
+    setLevelBankSaving(true);
+    try {
+      const response = await saveLevelToLevelBank(level);
+      applyLevelBankResponse(response);
+      return response;
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Unable to save level to Netlify.');
+      return null;
+    } finally {
+      setLevelBankSaving(false);
     }
   };
 
-  const confirmDeleteLevel = () => {
+  const confirmDeleteLevel = async () => {
     if (!deleteTarget) return;
 
     const levelId = deleteTarget.metadata.levelId;
-    const nextLocalLevels = localLevels.filter((level) => level.metadata.levelId !== levelId);
-    persistLocalLevels(nextLocalLevels);
+    setLevelBankSaving(true);
+    try {
+      const response = await deleteLevelFromLevelBank(levelId);
+      applyLevelBankResponse(response);
 
-    if (deleteTarget.source === 'official' || isOfficialLevelId(levelId)) {
-      persistDeletedOfficialLevelIds([...deletedOfficialLevelIds, levelId]);
+      if (activeLevel?.metadata.levelId === levelId) {
+        setActiveLevel(null);
+        setScreen('menu');
+      }
+
+      setDeleteTarget(null);
+      setToast('Level removed from the Netlify level bank.');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Unable to delete level from Netlify.');
+    } finally {
+      setLevelBankSaving(false);
     }
-
-    if (activeLevel?.metadata.levelId === levelId) {
-      setActiveLevel(null);
-      setScreen('menu');
-    }
-
-    setDeleteTarget(null);
-    setToast('Level removed from your overview.');
   };
 
   const updateActiveLevel = (updater: (level: StoredUserLevel) => StoredUserLevel) => {
@@ -748,7 +683,7 @@ export function LevelDesigner() {
     setPublishModalOpen(true);
   };
 
-  const createLevelFromModal = () => {
+  const createLevelFromModal = async () => {
     if (!metadataName.trim() || !metadataDescription.trim()) {
       setMetadataError('Name and description are required.');
       return;
@@ -773,7 +708,7 @@ export function LevelDesigner() {
       data: createEmptyLevelData(),
     };
 
-    upsertLevel(level);
+    const response = await saveLevelToServer(level);
     setActiveLevel(level);
     setViewBox(getFocusedViewBox(level.data));
     setHistory({ past: [], future: [] });
@@ -781,7 +716,7 @@ export function LevelDesigner() {
     setCreateModalOpen(false);
     setEditorMode('create');
     clearDraftAction();
-    setToast('Level shell created.');
+    setToast(response?.serverAvailable ? 'Level shell saved to Netlify.' : 'Level shell created. Save again when Netlify is available.');
   };
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -936,7 +871,7 @@ export function LevelDesigner() {
     zoomView(event.deltaY < 0 ? 'in' : 'out', getPointFromSvg(event, svgRef.current));
   };
 
-  const saveActiveLevel = (statusOverride?: LevelMetadata['status']) => {
+  const saveActiveLevel = async (statusOverride?: LevelMetadata['status']) => {
     if (!activeLevel) return;
 
     const hasRequiredMarkers = Boolean(activeLevel.data.start && activeLevel.data.finish);
@@ -951,11 +886,13 @@ export function LevelDesigner() {
     };
 
     setActiveLevel(updatedLevel);
-    upsertLevel(updatedLevel);
-    setToast(savedStatus === 'published' ? 'Level published to the local database.' : 'Level saved.');
+    const response = await saveLevelToServer(updatedLevel);
+    if (response?.serverAvailable) {
+      setToast(savedStatus === 'published' ? 'Level published to the Netlify level bank.' : 'Level saved to Netlify.');
+    }
   };
 
-  const publishActiveLevel = () => {
+  const publishActiveLevel = async () => {
     if (!activeLevel) return;
 
     if (!metadataName.trim() || !metadataDescription.trim() || !metadataDifficulty) {
@@ -981,9 +918,11 @@ export function LevelDesigner() {
     };
 
     setActiveLevel(updatedLevel);
-    upsertLevel(updatedLevel);
+    const response = await saveLevelToServer(updatedLevel);
+    if (!response?.serverAvailable) return;
+
     setPublishModalOpen(false);
-    setToast('Level published to the local database.');
+    setToast('Level published to the Netlify level bank.');
   };
 
   const resetTestRun = () => {
@@ -1092,11 +1031,16 @@ export function LevelDesigner() {
                 </button>
               </>
             )}
-            <button className="secondary-action nav-icon-action" type="button" onClick={() => saveActiveLevel()}>
+            <button
+              className="secondary-action nav-icon-action"
+              type="button"
+              onClick={() => void saveActiveLevel()}
+              disabled={levelBankSaving}
+            >
               <SaveIcon />
-              Save
+              {levelBankSaving ? 'Saving' : 'Save'}
             </button>
-            <button className="primary-action" type="button" onClick={openPublishModal}>
+            <button className="primary-action" type="button" onClick={openPublishModal} disabled={levelBankSaving}>
               Publish
             </button>
           </div>
@@ -1367,6 +1311,11 @@ export function LevelDesigner() {
         </button>
       </section>
 
+      <div className={`level-bank-status ${levelBankResponse?.serverAvailable ? 'online' : 'offline'}`}>
+        <span>{levelBankLoading ? 'Loading level bank' : levelBankResponse?.serverAvailable ? 'Netlify level bank connected' : 'Static seed fallback'}</span>
+        <span>{LEVEL_BANK_SITE_NAME}</span>
+      </div>
+
       <section className="level-grid" aria-label="Your levels">
         {levels.map((level) => {
           const difficulty = level.metadata.difficulty ?? 'unassigned';
@@ -1384,7 +1333,7 @@ export function LevelDesigner() {
               <div className="level-tile-actions">
                 <button
                   type="button"
-                  title={level.source === 'local' ? 'Edit level' : 'Edit as local draft'}
+                  title="Edit level"
                   aria-label={`Edit ${level.metadata.name}`}
                   onClick={() => editLevelFromOverview(level)}
                 >
@@ -1404,7 +1353,8 @@ export function LevelDesigner() {
               <span className={`difficulty-pill difficulty-${difficulty}`}>
                 {difficulty}
               </span>
-              <span>{level.source === 'official' ? 'ADMIN' : level.metadata.status}</span>
+              <span>{level.metadata.owners.join(', ') || DEFAULT_LEVEL_OWNER}</span>
+              <span>{level.metadata.status}</span>
               <span>v{level.metadata.version}</span>
             </div>
           </article>
@@ -1502,9 +1452,7 @@ function DeleteLevelModal({
       <section className="metadata-modal" role="dialog" aria-modal="true" aria-labelledby="delete-level-title">
         <h2 id="delete-level-title">Delete level?</h2>
         <p className="delete-level-copy">
-          {level.source === 'official'
-            ? 'This will hide the ADMIN level from your local designer overview. The bundled level bank remains unchanged.'
-            : 'This will remove the level from your local designer overview.'}
+          This will remove the level from the Netlify level bank for this site.
         </p>
         <p className="delete-level-name">{level.metadata.name}</p>
         <div className="metadata-modal-actions">

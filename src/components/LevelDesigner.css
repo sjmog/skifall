@@ -129,6 +129,14 @@
   transform: none;
 }
 
+.primary-action:disabled,
+.secondary-action:disabled,
+.danger-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+}
+
 .text-action {
   background: transparent;
   color: #155e75;
@@ -141,6 +149,40 @@
   gap: 18px;
   max-width: 1360px;
   margin: 0 auto;
+}
+
+.level-bank-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1360px;
+  margin: -12px auto 18px;
+  border: 1px solid #d7e2ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.level-bank-status::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.level-bank-status.online::before {
+  background: #22c55e;
+}
+
+.level-bank-status.offline::before {
+  background: #f59e0b;
 }
 
 .level-tile {
