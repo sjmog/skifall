@@ -155,8 +155,8 @@ function getPointFromSvg(event: { clientX: number; clientY: number }, svg: SVGSV
   const point = svg.createSVGPoint();
   point.x = event.clientX;
   point.y = event.clientY;
-  const transformed = point.matrixTransform(svg.getScreenCTM()?.inverse());
-
+  const ctm = svg.getScreenCTM();
+  const transformed = ctm ? point.matrixTransform(ctm.inverse()) : point;
   return {
     x: Math.max(0, Math.min(LEVEL_WIDTH, transformed.x)),
     y: Math.max(0, Math.min(LEVEL_HEIGHT, transformed.y)),
