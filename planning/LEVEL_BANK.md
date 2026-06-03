@@ -11,7 +11,7 @@ Each level has:
 - `metadata.image`: the full-level screenshot for menus, review tools, and the future level designer.
 - `metadata.owners`: account identifiers for maintainers of the level. For now, the Blob document normalizer forces every level to `[DEFAULT_LEVEL_OWNER]`, currently `ADMIN`, so all levels remain editable/deletable by the creator tooling.
 - `metadata.difficulty`: one of `easy`, `medium`, or `hard`.
-- `metadata.status`: one of `draft`, `published`, or `archived`.
+- `metadata.status`: one of `unfinished`, `finished`, `draft`, `published`, or `archived`.
 - `metadata.version`: the level revision number.
 - `metadata.tags`: searchable tags for grouping and discovery.
 - `metadata.createdAt` and `metadata.updatedAt`: ISO date strings for database sorting and auditing.
