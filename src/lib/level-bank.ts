@@ -130,7 +130,13 @@ export function normalizeLevelBankDocument(value: unknown): LevelBankDocument {
 
   const record = value as Partial<LevelBankDocument>;
   const levels = Array.isArray(record.levels)
-    ? record.levels.map((level) => normalizeLevelBankLevel(level))
+    ? record.levels.flatMap((level) => {
+        try {
+          return [normalizeLevelBankLevel(level as LevelBankLevel)];
+        } catch {
+          return [];
+        }
+      })
     : fallback.levels;
 
   return {
