@@ -34,6 +34,10 @@ const spriteUrls: Record<SkierCharacter, { head: string; torso: string; legs: st
   4: { head: skier4Head, torso: skier4Torso, legs: skier4Legs, skis: skier4Skis },
 };
 
+export function getSkierSpriteUrls(character: SkierCharacter = 1): { head: string; torso: string; legs: string; skis: string } {
+  return spriteUrls[character];
+}
+
 const loadedSprites: Map<SkierCharacter, SkierSprites> = new Map();
 const loadingPromises: Map<SkierCharacter, Promise<SkierSprites>> = new Map();
 
@@ -91,4 +95,3 @@ export async function preloadAllSprites(): Promise<void> {
 export function getCharacterForPlayer(playerIndex: number): SkierCharacter {
   return ((playerIndex % 4) + 1) as SkierCharacter;
 }
-

@@ -5,6 +5,7 @@ import { audioManager } from '../lib/audio';
 import { MenuButton } from './MenuButton';
 import { SkierAvatar } from './SkierAvatar';
 import type { Player } from '../hooks/usePartySocket';
+import type { GameMode } from '../types';
 import backgroundGif from '../assets/images/homepage chalet advanced.gif';
 import logoImage from '../assets/images/skifall_logo_transparent.png';
 import hostGameBtn from '../assets/images/host-game.png';
@@ -20,10 +21,17 @@ interface HomeScreenProps {
   players?: Player[];
   localPlayerId?: string | null;
   totalRounds?: number;
+  gameMode?: GameMode;
   roundOptions?: number[];
   onSetReady?: (isReady: boolean) => void;
   onSetTotalRounds?: (rounds: number) => void;
+  onSetGameMode?: (mode: GameMode) => void;
 }
+
+const GAME_MODE_TOOLTIPS: Record<GameMode, string> = {
+  downhill: "It's a race down official SkiFall levels - watch out for hazards!",
+  freestyle: 'Create your own slopes to get to the bottom before everyone else!',
+};
 
 export function HomeScreen({ 
   onJoinRoom, 
@@ -34,9 +42,11 @@ export function HomeScreen({
   players = [],
   localPlayerId,
   totalRounds = 5,
+  gameMode = 'downhill',
   roundOptions = [3, 5, 7, 10],
   onSetReady,
   onSetTotalRounds,
+  onSetGameMode,
 }: HomeScreenProps) {
   const [mode, setMode] = useState<'home' | 'join'>('home');
   const [joinRoomCode, setJoinRoomCode] = useState('');
@@ -181,6 +191,28 @@ export function HomeScreen({
                 </button>
               ))}
             </div>
+            <div className="lobby-setting-divider" />
+            <div className="lobby-section-title">Game Mode</div>
+            <div className="lobby-toggle-options">
+              <button
+                className={`lobby-toggle-btn ${gameMode === 'downhill' ? 'selected' : ''}`}
+                onClick={() => onSetGameMode?.('downhill')}
+                disabled={isReady}
+                data-tooltip={GAME_MODE_TOOLTIPS.downhill}
+                title={GAME_MODE_TOOLTIPS.downhill}
+              >
+                Downhill
+              </button>
+              <button
+                className={`lobby-toggle-btn ${gameMode === 'freestyle' ? 'selected' : ''}`}
+                onClick={() => onSetGameMode?.('freestyle')}
+                disabled={isReady}
+                data-tooltip={GAME_MODE_TOOLTIPS.freestyle}
+                title={GAME_MODE_TOOLTIPS.freestyle}
+              >
+                Freestyle
+              </button>
+            </div>
           </div>
 
           <button
@@ -197,8 +229,6 @@ export function HomeScreen({
     </div>
   );
 }
-
-
 
 
 

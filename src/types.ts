@@ -12,6 +12,8 @@ export type Tool = 'hand' | 'pencil' | 'eraser';
 
 export type SkierState = 'idle' | 'moving' | 'fallen' | 'finished';
 
+export type GameMode = 'downhill' | 'freestyle';
+
 export interface Camera {
   x: number;
   y: number;

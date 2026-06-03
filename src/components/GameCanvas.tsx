@@ -25,6 +25,7 @@ import {
   drawGrid,
   drawMarker,
   drawLines,
+  drawLevelFeatures,
   drawLine,
   applyCameraTransform,
   calculateFitBounds,
@@ -180,12 +181,19 @@ export function GameCanvas({
     lastSyncedLevelRef.current = levelKey;
 
     actions.initAtSpawn(level.start.x, level.start.y);
+    actions.setTerrainLines(
+      level.features
+        .filter((feature) => feature.kind === "solid")
+        .map((feature) => ({ id: feature.id, points: feature.points }))
+    );
 
     const bounds = calculateFitBounds(
       level.start,
       level.finish,
       canvasSize.width,
-      canvasSize.height
+      canvasSize.height,
+      150,
+      level.features.flatMap((feature) => feature.points)
     );
     camera.setCamera({
       x: bounds.centerX,
@@ -205,6 +213,7 @@ export function GameCanvas({
     actions,
     level.start,
     level.finish,
+    level.features,
     canvasSize,
     camera,
     timer,
@@ -249,7 +258,9 @@ export function GameCanvas({
           pendingLevel.start,
           pendingLevel.finish,
           canvasSize.width,
-          canvasSize.height
+          canvasSize.height,
+          150,
+          pendingLevel.features.flatMap((feature) => feature.points)
         );
         camera.setCamera({
           x: bounds.centerX,
@@ -321,6 +332,7 @@ export function GameCanvas({
     applyCameraTransform(ctx, camera.camera, width, height);
 
     drawGrid(ctx, camera.camera, width, height);
+    drawLevelFeatures(ctx, level.features, portalScale);
     drawMarker(ctx, level.start, "START", COLORS.startZone, portalScale);
     drawMarker(ctx, level.finish, "FINISH", COLORS.finishZone, portalScale);
 

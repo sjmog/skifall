@@ -1,5 +1,6 @@
 import type { Point, Line, Camera } from '../types';
 import { COLORS, LINE_WIDTH } from './constants';
+import type { LevelFeature } from './pregenerated-levels';
 
 const GRID_SIZE = 50;
 
@@ -105,6 +106,22 @@ export function drawLines(
   }
 }
 
+export function drawLevelFeatures(
+  ctx: CanvasRenderingContext2D,
+  features: LevelFeature[],
+  opacity = 1
+) {
+  for (const feature of features) {
+    drawLine(
+      ctx,
+      feature.points,
+      false,
+      feature.kind === 'solid' ? opacity : opacity * 0.55,
+      feature.kind === 'solid' ? COLORS.line : '#9CA3AF'
+    );
+  }
+}
+
 export function applyCameraTransform(
   ctx: CanvasRenderingContext2D,
   camera: Camera,
@@ -121,12 +138,14 @@ export function calculateFitBounds(
   finish: Point,
   viewportWidth: number,
   viewportHeight: number,
-  padding = 150
+  padding = 150,
+  extraPoints: Point[] = []
 ): { centerX: number; centerY: number; zoom: number } {
-  const minX = Math.min(start.x, finish.x) - padding;
-  const maxX = Math.max(start.x, finish.x) + padding;
-  const minY = Math.min(start.y, finish.y) - padding;
-  const maxY = Math.max(start.y, finish.y) + padding;
+  const points = [start, finish, ...extraPoints];
+  const minX = Math.min(...points.map((point) => point.x)) - padding;
+  const maxX = Math.max(...points.map((point) => point.x)) + padding;
+  const minY = Math.min(...points.map((point) => point.y)) - padding;
+  const maxY = Math.max(...points.map((point) => point.y)) + padding;
 
   const width = maxX - minX;
   const height = maxY - minY;
