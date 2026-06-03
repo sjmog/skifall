@@ -77,6 +77,15 @@ export default async function handler(request: Request): Promise<Response> {
     return new Response(null, { status: 204, headers: jsonHeaders });
   }
 
+  const adminToken = process.env.LEVEL_BANK_ADMIN_TOKEN;
+  const isWrite = request.method !== 'GET';
+  if (adminToken && isWrite) {
+    const token = request.headers.get('x-level-bank-token');
+    if (token !== adminToken) {
+      return jsonResponse({ error: 'Unauthorized.' }, { status: 401 });
+    }
+  }
+
   try {
     if (request.method === 'GET') {
       return responseWithDocument(await readDocument());
