@@ -1,6 +1,11 @@
 import type { Party, PartyKitServer, Connection } from "partykit/server";
 import { generatePlayerName } from "./player-names";
 import { generateLevel, type Level, type LevelDifficulty } from "./level-generator";
+import {
+  normalizeLevelBankDocument,
+  type LevelBankLevel,
+  type LevelBankResponse,
+} from "../src/lib/level-bank";
 
 const PLAYER_COLORS = [
   "#E11D48", // red
@@ -17,6 +22,7 @@ const PLAYER_AVATARS = [
 const DEFAULT_TOTAL_ROUNDS = 5;
 const ROUND_OPTIONS = [3, 5, 7, 10];
 const DEFAULT_GAME_MODE: GameMode = 'downhill';
+const LEVEL_BANK_API_URL = 'https://ski-fall.com/.netlify/functions/levels';
 
 type GamePhase = 'lobby' | 'playing' | 'round-complete' | 'game-over';
 type GameMode = 'downhill' | 'freestyle';
@@ -67,6 +73,86 @@ function getDifficultyForRound(
   return 'hard';
 }
 
+function clonePoint(point: Point): Point {
+  return { x: point.x, y: point.y };
+}
+
+function cloneFeatures(features: LevelBankLevel['data']['blackLines']) {
+  return features.map((feature) => ({
+    ...feature,
+    points: feature.points.map(clonePoint),
+  }));
+}
+
+function levelFromBankLevel(level: LevelBankLevel): Level | null {
+  const { metadata, data } = level;
+  if (!data.start || !data.finish) return null;
+
+  const blackLines = cloneFeatures(data.blackLines);
+  const greyLines = cloneFeatures(data.greyLines);
+
+  return {
+    id: `${metadata.levelId}-${crypto.randomUUID()}`,
+    templateId: metadata.levelId,
+    name: metadata.name,
+    owners: [...metadata.owners],
+    difficulty: metadata.difficulty,
+    metadata: {
+      ...metadata,
+      image: { ...metadata.image },
+      owners: [...metadata.owners],
+      tags: [...metadata.tags],
+    },
+    data: {
+      start: clonePoint(data.start),
+      finish: clonePoint(data.finish),
+      blackLines,
+      greyLines,
+    },
+    start: clonePoint(data.start),
+    finish: clonePoint(data.finish),
+    features: [...blackLines, ...greyLines],
+  };
+}
+
+async function generateDownhillLevel(
+  roundIndex: number,
+  difficulty: LevelDifficulty
+): Promise<Level> {
+  try {
+    const response = await fetch(LEVEL_BANK_API_URL, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Level bank responded with ${response.status}`);
+    }
+
+    const payload = await response.json() as LevelBankResponse;
+    const document = normalizeLevelBankDocument(payload.document);
+    const publishedLevels = document.levels.filter((level) => (
+      level.metadata.status === 'published' &&
+      level.data.start &&
+      level.data.finish
+    ));
+    const difficultyLevels = publishedLevels.filter((level) => (
+      level.metadata.difficulty === difficulty
+    ));
+    const levelBank = difficultyLevels.length > 0 ? difficultyLevels : publishedLevels;
+    const selectedLevel = levelBank[roundIndex % Math.max(levelBank.length, 1)];
+    const generatedLevel = selectedLevel ? levelFromBankLevel(selectedLevel) : null;
+
+    if (generatedLevel) return generatedLevel;
+  } catch (error) {
+    console.warn(
+      '[SkiFall] Falling back to static downhill level:',
+      error instanceof Error ? error.message : error
+    );
+  }
+
+  return generateLevel(true, roundIndex, difficulty);
+}
+
 export default class SkiFallServer implements PartyKitServer {
   players: Map<string, PlayerState> = new Map();
   lines: Map<string, Line> = new Map();
@@ -107,12 +193,14 @@ export default class SkiFallServer implements PartyKitServer {
     return active.length > 0 && active.every(p => p.roundResult !== null);
   }
 
-  startRound() {
+  async startRound() {
     this.currentRound++;
     const difficulty = this.gameMode === 'downhill'
       ? getDifficultyForRound(this.currentRound, this.totalRounds)
       : undefined;
-    this.level = generateLevel(this.gameMode === 'downhill', this.currentRound - 1, difficulty);
+    this.level = this.gameMode === 'downhill'
+      ? await generateDownhillLevel(this.currentRound - 1, difficulty)
+      : generateLevel(false);
     this.roundStartTime = Date.now();
     this.lines.clear();
     
@@ -208,7 +296,7 @@ export default class SkiFallServer implements PartyKitServer {
     );
   }
 
-  onClose(conn: Connection) {
+  async onClose(conn: Connection) {
     this.players.delete(conn.id);
     
     const removedLineIds: string[] = [];
@@ -230,19 +318,19 @@ export default class SkiFallServer implements PartyKitServer {
 
     // Check if game state should change due to player leaving
     if (this.gamePhase === 'lobby' && this.checkAllPlayersReady()) {
-      this.startRound();
+      await this.startRound();
     } else if (this.gamePhase === 'playing' && this.checkAllPlayersFinished()) {
       this.endRound();
     } else if (this.gamePhase === 'round-complete' && this.checkAllPlayersReady()) {
       if (this.currentRound >= this.totalRounds) {
         this.endGame();
       } else {
-        this.startRound();
+        await this.startRound();
       }
     }
   }
 
-  onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
+  async onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
     if (typeof message !== 'string') return;
     
     try {
@@ -254,12 +342,12 @@ export default class SkiFallServer implements PartyKitServer {
         player.isReady = data.isReady;
         
         if (this.gamePhase === 'lobby' && this.checkAllPlayersReady()) {
-          this.startRound();
+          await this.startRound();
         } else if (this.gamePhase === 'round-complete' && this.checkAllPlayersReady()) {
           if (this.currentRound >= this.totalRounds) {
             this.endGame();
           } else {
-            this.startRound();
+            await this.startRound();
           }
         } else {
           this.broadcastGameState();
@@ -329,7 +417,9 @@ export default class SkiFallServer implements PartyKitServer {
         const difficulty = this.gameMode === 'downhill'
           ? getDifficultyForRound(Math.max(this.currentRound, 1), this.totalRounds)
           : undefined;
-        this.level = generateLevel(this.gameMode === 'downhill', this.currentRound, difficulty);
+        this.level = this.gameMode === 'downhill'
+          ? await generateDownhillLevel(this.currentRound, difficulty)
+          : generateLevel(false);
         this.roundStartTime = Date.now();
         this.lines.clear();
         for (const p of this.players.values()) {
