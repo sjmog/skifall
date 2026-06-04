@@ -36,6 +36,8 @@
 .level-editor-header h1 {
   margin: 0;
   color: #111827;
+  font-family: "Courier New", monospace;
+  font-weight: 800;
   font-size: clamp(36px, 6vw, 72px);
   line-height: 0.96;
 }
@@ -441,14 +443,32 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  padding: 10px clamp(12px, 2vw, 28px) 14px;
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(226, 239, 249, 0.78), rgba(249, 251, 255, 0.92)),
+    #eef6fb;
 }
 
 .level-editor-header {
-  flex: 0 0 auto;
-  width: 100%;
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  left: 304px;
+  z-index: 8;
   align-items: center;
-  margin-bottom: 10px;
+  width: auto;
+  margin: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+  padding: 10px 12px;
+  transition: left 0.24s ease;
+}
+
+.toolbar-collapsed .level-editor-header {
+  left: 64px;
 }
 
 .level-editor-header h1 {
@@ -458,31 +478,83 @@
 .editor-workspace {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  gap: 16px;
+  gap: 0;
   min-height: 0;
+  height: 100vh;
   flex: 1 1 auto;
+  position: relative;
+  transition: grid-template-columns 0.24s ease;
+}
+
+.toolbar-collapsed .editor-workspace {
+  grid-template-columns: 0 minmax(0, 1fr);
 }
 
 .editor-tool-panel {
-  overflow: auto;
-  border: 1px solid #d7e2ea;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
-  padding: 14px;
+  position: relative;
+  z-index: 12;
+  width: 280px;
+  height: 100vh;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: rgba(31, 41, 55, 0.58);
+  backdrop-filter: blur(18px);
+  box-shadow: 18px 0 48px rgba(15, 23, 42, 0.2);
+  padding: 8px;
+  transition: transform 0.24s ease;
+}
+
+.toolbar-collapsed .editor-tool-panel {
+  transform: translateX(-100%);
+}
+
+.editor-tool-panel-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: opacity 0.18s ease;
+}
+
+.toolbar-collapsed .editor-tool-panel-inner {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toolbar-collapse-button {
+  position: absolute;
+  top: 50%;
+  right: -38px;
+  z-index: 14;
+  width: 38px;
+  height: 70px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: rgba(31, 41, 55, 0.68);
+  color: #ffffff;
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  transform: translateY(-50%);
 }
 
 .tool-group {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0 0 14px;
-  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+  padding: 0 0 5px;
+  margin-bottom: 5px;
 }
 
 .tool-group h2,
 .requirements-card h2 {
-  margin: 0 0 10px;
-  color: #334155;
-  font-size: 13px;
+  margin: 0 0 4px;
+  color: rgba(255, 255, 255, 0.74);
+  font-family: "Courier New", monospace;
+  font-size: 12px;
   text-transform: uppercase;
 }
 
@@ -495,19 +567,28 @@
 .tool-heading-icon {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  background: #eef6f9;
+  background: rgba(255, 255, 255, 0.13);
 }
 
 .tool-heading-icon img {
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
 }
 
-.tool-heading-icon svg,
+.tool-heading-icon svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .editor-header-actions svg {
   width: 18px;
   height: 18px;
@@ -519,8 +600,8 @@
 }
 
 .place-heading-icon {
-  width: 16px;
-  height: 16px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   background: linear-gradient(135deg, #2563eb 0%, #14b8a6 100%);
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.68);
@@ -537,16 +618,17 @@
 }
 
 .style-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .segmented-control button,
 .style-grid button,
 .wide-tool-button {
-  min-height: 42px;
-  border: 1px solid #d7e2ea;
-  background: #f8fafc;
-  color: #334155;
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
 }
 
 .wide-tool-button {
@@ -555,28 +637,30 @@
 
 .zoom-button-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .zoom-button-row button {
-  min-height: 38px;
-  border: 1px solid #d7e2ea;
+  min-height: 34px;
+  border: 1px solid rgba(147, 197, 253, 0.42);
   border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
+  background: rgba(59, 130, 246, 0.18);
+  color: #ffffff;
   cursor: pointer;
   font-family: "Courier New", monospace;
+  font-size: 22px;
   font-weight: 700;
 }
 
 .segmented-control button.selected,
 .style-grid button.selected,
 .wide-tool-button.selected {
-  background: #155e75;
+  background: #3b82f6;
   color: #ffffff;
-  border-color: #155e75;
+  border-color: #3b82f6;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.26);
 }
 
 .test-button {
@@ -588,14 +672,14 @@
 .requirements-card,
 .test-status-card {
   display: grid;
-  gap: 8px;
-  border: 1px solid #d7e2ea;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
-  background: #f8fafc;
-  padding: 12px;
-  color: #64748b;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  color: rgba(255, 255, 255, 0.72);
   font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -622,8 +706,8 @@
 }
 
 .test-status-card strong {
-  color: #111827;
-  font-size: 22px;
+  color: #ffffff;
+  font-size: 20px;
 }
 
 .status-complete strong {
@@ -637,17 +721,17 @@
 .editor-map-panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid #d7e2ea;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   background: #ffffff;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
 .level-editor-map {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 480px;
+  min-height: 100vh;
   cursor: crosshair;
   touch-action: none;
   overscroll-behavior: contain;
@@ -778,10 +862,27 @@
     padding: 28px 16px 40px;
   }
 
-  .level-designer-header,
-  .level-editor-header {
+  .level-designer-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .level-editor-header {
+    top: 8px;
+    right: 8px;
+    left: 54px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .toolbar-collapsed .level-editor-header {
+    left: 48px;
+  }
+
+  .level-editor-header h1 {
+    font-size: 22px;
   }
 
   .create-level-button,
@@ -796,21 +897,22 @@
     grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   }
 
-  .editor-workspace {
+  .level-editor-shell .editor-workspace {
     grid-template-columns: 1fr;
-    overflow: auto;
+    overflow: hidden;
+    height: 100vh;
   }
 
   .editor-tool-panel {
-    position: sticky;
-    top: 12px;
-    z-index: 5;
-    max-height: 44vh;
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(76vw, 260px);
+    max-height: none;
   }
 
   .tool-group {
-    margin-bottom: 10px;
-    padding-bottom: 10px;
+    margin-bottom: 7px;
+    padding-bottom: 7px;
   }
 
   .requirements-card {
@@ -822,15 +924,15 @@
   }
 
   .level-editor-shell {
-    height: auto;
-    overflow: visible;
+    height: 100vh;
+    overflow: hidden;
   }
 
   .editor-map-panel {
-    min-height: 62vh;
+    min-height: 100vh;
   }
 
   .level-editor-map {
-    min-height: 560px;
+    min-height: 100vh;
   }
 }

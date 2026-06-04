@@ -142,9 +142,11 @@ export function GameCanvas({
   const skillTracker = useSkillTracker();
 
   const level = gameState.level;
+  const setGameLevel = gameState.setLevel;
   const levelKey = level.id;
   const pendingServerLevelRef = useRef<typeof serverLevel>(null);
   const lastSyncedLevelRef = useRef<string | null>(null);
+  const hasAppliedServerLevelRef = useRef(Boolean(serverLevel));
 
   // Set local player's character sprite
   useEffect(() => {
@@ -155,6 +157,14 @@ export function GameCanvas({
 
   useEffect(() => {
     if (!serverLevel || serverLevel.id === level.id) return;
+
+    if (!hasAppliedServerLevelRef.current) {
+      pendingServerLevelRef.current = null;
+      hasAppliedServerLevelRef.current = true;
+      setGameLevel(serverLevel);
+      return;
+    }
+
     if (transitionPhase !== "idle") return;
 
     pendingServerLevelRef.current = serverLevel;
@@ -174,9 +184,14 @@ export function GameCanvas({
     skillTracker,
     onSkierPosition,
     player.skierRenderState,
+    setGameLevel,
   ]);
 
   useEffect(() => {
+    if (serverLevel?.id === levelKey) {
+      hasAppliedServerLevelRef.current = true;
+    }
+
     if (lastSyncedLevelRef.current === levelKey) return;
     lastSyncedLevelRef.current = levelKey;
 
@@ -218,6 +233,7 @@ export function GameCanvas({
     camera,
     timer,
     serverRoundStartTime,
+    serverLevel?.id,
   ]);
 
   useEffect(() => {

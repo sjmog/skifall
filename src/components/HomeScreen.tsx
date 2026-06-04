@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { generateRoomCode, isValidRoomCode } from '../lib/room-codes';
 import { audioManager } from '../lib/audio';
@@ -52,6 +52,30 @@ export function HomeScreen({
   const [joinRoomCode, setJoinRoomCode] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [pendingRounds, setPendingRounds] = useState<number | null>(null);
+  const [pendingGameMode, setPendingGameMode] = useState<GameMode | null>(null);
+
+  useEffect(() => {
+    if (pendingRounds === null) return undefined;
+    if (pendingRounds === totalRounds) {
+      setPendingRounds(null);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setPendingRounds(null), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [pendingRounds, totalRounds]);
+
+  useEffect(() => {
+    if (pendingGameMode === null) return undefined;
+    if (pendingGameMode === gameMode) {
+      setPendingGameMode(null);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setPendingGameMode(null), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [pendingGameMode, gameMode]);
 
   const handleStart = () => {
     onStart();
@@ -61,6 +85,10 @@ export function HomeScreen({
   const handleHostGame = () => {
     const code = generateRoomCode();
     onJoinRoom(code);
+  };
+
+  const handleOpenLevelDesigner = () => {
+    window.location.href = '/level-designer';
   };
 
   const handleJoinSubmit = () => {
@@ -90,6 +118,20 @@ export function HomeScreen({
   const isReady = localPlayer?.isReady ?? false;
   const allReady = players.length > 0 && players.every(p => p.isReady);
   const readyCount = players.filter(p => p.isReady).length;
+  const displayedRounds = pendingRounds ?? totalRounds;
+  const displayedGameMode = pendingGameMode ?? gameMode;
+
+  const handleSelectRounds = (rounds: number) => {
+    if (isReady || rounds === displayedRounds) return;
+    setPendingRounds(rounds);
+    onSetTotalRounds?.(rounds);
+  };
+
+  const handleSelectGameMode = (nextGameMode: GameMode) => {
+    if (isReady || nextGameMode === displayedGameMode) return;
+    setPendingGameMode(nextGameMode);
+    onSetGameMode?.(nextGameMode);
+  };
 
   // Determine logo state: 'splash' -> 'menu' -> 'lobby'
   const logoState = !hasStarted ? 'splash' : isInLobby ? 'lobby' : 'menu';
@@ -125,6 +167,9 @@ export function HomeScreen({
             <div className="floating-buttons">
               <MenuButton src={hostGameBtn} alt="Host Game" onClick={handleHostGame} delay={0.3} />
               <MenuButton src={joinLobbyBtn} alt="Join Lobby" onClick={() => setMode('join')} delay={0.45} />
+              <button className="slope-editor-link" type="button" onClick={handleOpenLevelDesigner}>
+                Slope Editor
+              </button>
             </div>
           )}
         </AnimatePresence>
@@ -168,9 +213,7 @@ export function HomeScreen({
                   >
                     <SkierAvatar character={player.character} size={40} />
                     <span className="lobby-player-name">{isLocal ? 'You' : player.name}</span>
-                    <span className={`lobby-ready-badge ${player.isReady ? 'ready' : ''}`}>
-                      {player.isReady ? '✓' : '...'}
-                    </span>
+                    {player.isReady && <span className="lobby-ready-badge ready">✓</span>}
                   </div>
                 );
               })}
@@ -183,9 +226,10 @@ export function HomeScreen({
               {roundOptions.map(option => (
                 <button
                   key={option}
-                  className={`lobby-round-btn ${totalRounds === option ? 'selected' : ''}`}
-                  onClick={() => onSetTotalRounds?.(option)}
+                  className={['lobby-round-btn', displayedRounds === option ? 'selected' : ''].filter(Boolean).join(' ')}
+                  onClick={() => handleSelectRounds(option)}
                   disabled={isReady}
+                  aria-pressed={displayedRounds === option}
                 >
                   {option}
                 </button>
@@ -195,20 +239,20 @@ export function HomeScreen({
             <div className="lobby-section-title">Game Mode</div>
             <div className="lobby-toggle-options">
               <button
-                className={`lobby-toggle-btn ${gameMode === 'downhill' ? 'selected' : ''}`}
-                onClick={() => onSetGameMode?.('downhill')}
+                className={['lobby-toggle-btn', displayedGameMode === 'downhill' ? 'selected' : ''].filter(Boolean).join(' ')}
+                onClick={() => handleSelectGameMode('downhill')}
                 disabled={isReady}
+                aria-pressed={displayedGameMode === 'downhill'}
                 data-tooltip={GAME_MODE_TOOLTIPS.downhill}
-                title={GAME_MODE_TOOLTIPS.downhill}
               >
                 Downhill
               </button>
               <button
-                className={`lobby-toggle-btn ${gameMode === 'freestyle' ? 'selected' : ''}`}
-                onClick={() => onSetGameMode?.('freestyle')}
+                className={['lobby-toggle-btn', displayedGameMode === 'freestyle' ? 'selected' : ''].filter(Boolean).join(' ')}
+                onClick={() => handleSelectGameMode('freestyle')}
                 disabled={isReady}
+                aria-pressed={displayedGameMode === 'freestyle'}
                 data-tooltip={GAME_MODE_TOOLTIPS.freestyle}
-                title={GAME_MODE_TOOLTIPS.freestyle}
               >
                 Freestyle
               </button>
@@ -229,6 +273,4 @@ export function HomeScreen({
     </div>
   );
 }
-
-
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Player } from '../hooks/usePartySocket';
 import type { GameMode } from '../types';
 import './Lobby.css';
@@ -32,10 +32,49 @@ export function Lobby({
   onSetGameMode,
 }: LobbyProps) {
   const [copied, setCopied] = useState(false);
+  const [pendingRounds, setPendingRounds] = useState<number | null>(null);
+  const [pendingGameMode, setPendingGameMode] = useState<GameMode | null>(null);
   const localPlayer = players.find(p => p.id === localPlayerId);
   const isReady = localPlayer?.isReady ?? false;
   const allReady = players.length > 0 && players.every(p => p.isReady);
   const readyCount = players.filter(p => p.isReady).length;
+
+  useEffect(() => {
+    if (pendingRounds === null) return undefined;
+    if (pendingRounds === totalRounds) {
+      setPendingRounds(null);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setPendingRounds(null), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [pendingRounds, totalRounds]);
+
+  useEffect(() => {
+    if (pendingGameMode === null) return undefined;
+    if (pendingGameMode === gameMode) {
+      setPendingGameMode(null);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setPendingGameMode(null), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [pendingGameMode, gameMode]);
+
+  const displayedRounds = pendingRounds ?? totalRounds;
+  const displayedGameMode = pendingGameMode ?? gameMode;
+
+  const handleSelectRounds = (rounds: number) => {
+    if (isReady || rounds === displayedRounds) return;
+    setPendingRounds(rounds);
+    onSetTotalRounds(rounds);
+  };
+
+  const handleSelectGameMode = (nextGameMode: GameMode) => {
+    if (isReady || nextGameMode === displayedGameMode) return;
+    setPendingGameMode(nextGameMode);
+    onSetGameMode(nextGameMode);
+  };
 
   const handleCopyCode = async () => {
     await navigator.clipboard.writeText(roomCode);
@@ -84,9 +123,10 @@ export function Lobby({
               {roundOptions.map(option => (
                 <button
                   key={option}
-                  className={`round-option ${totalRounds === option ? 'selected' : ''}`}
-                  onClick={() => onSetTotalRounds(option)}
+                  className={['round-option', displayedRounds === option ? 'selected' : ''].filter(Boolean).join(' ')}
+                  onClick={() => handleSelectRounds(option)}
                   disabled={isReady}
+                  aria-pressed={displayedRounds === option}
                 >
                   {option}
                 </button>
@@ -97,20 +137,20 @@ export function Lobby({
             <span className="setting-label">Game Mode</span>
             <div className="toggle-selector">
               <button
-                className={`toggle-option ${gameMode === 'downhill' ? 'selected' : ''}`}
-                onClick={() => onSetGameMode('downhill')}
+                className={['toggle-option', displayedGameMode === 'downhill' ? 'selected' : ''].filter(Boolean).join(' ')}
+                onClick={() => handleSelectGameMode('downhill')}
                 disabled={isReady}
+                aria-pressed={displayedGameMode === 'downhill'}
                 data-tooltip={GAME_MODE_TOOLTIPS.downhill}
-                title={GAME_MODE_TOOLTIPS.downhill}
               >
                 Downhill
               </button>
               <button
-                className={`toggle-option ${gameMode === 'freestyle' ? 'selected' : ''}`}
-                onClick={() => onSetGameMode('freestyle')}
+                className={['toggle-option', displayedGameMode === 'freestyle' ? 'selected' : ''].filter(Boolean).join(' ')}
+                onClick={() => handleSelectGameMode('freestyle')}
                 disabled={isReady}
+                aria-pressed={displayedGameMode === 'freestyle'}
                 data-tooltip={GAME_MODE_TOOLTIPS.freestyle}
-                title={GAME_MODE_TOOLTIPS.freestyle}
               >
                 Freestyle
               </button>

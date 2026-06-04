@@ -19,6 +19,8 @@ const SCALE = 30;
 const CATEGORY_GROUND = 0x0001;
 const CATEGORY_SKIS = 0x0002;
 const CATEGORY_BODY = 0x0004;
+const SKIER_WELD_FREQUENCY_HZ = 10.4;
+const SKIER_WELD_DAMPING_RATIO = 0.9;
 
 function toPhysics(px: number): number {
   return px / SCALE;
@@ -146,7 +148,12 @@ export function createPhysicsEngine(spawnX: number, spawnY: number): PhysicsEngi
   skis.setUserData({ type: 'skis' });
 
   const neckJoint = world.createJoint(
-    new WeldJoint({ frequencyHz: 8.0, dampingRatio: 0.9 }, head, upperBody, Vec2(pSpawnX, neckY))
+    new WeldJoint(
+      { frequencyHz: SKIER_WELD_FREQUENCY_HZ, dampingRatio: SKIER_WELD_DAMPING_RATIO },
+      head,
+      upperBody,
+      Vec2(pSpawnX, neckY)
+    )
   );
 
   const hipJoint = world.createJoint(
@@ -295,7 +302,12 @@ export function resetSkier(engine: PhysicsEngine): void {
 
   if (engine.crashed) {
     engine.neckJoint = engine.world.createJoint(
-      new WeldJoint({ frequencyHz: 8.0, dampingRatio: 0.9 }, engine.head, engine.upperBody, Vec2(pSpawnX, neckY))
+      new WeldJoint(
+        { frequencyHz: SKIER_WELD_FREQUENCY_HZ, dampingRatio: SKIER_WELD_DAMPING_RATIO },
+        engine.head,
+        engine.upperBody,
+        Vec2(pSpawnX, neckY)
+      )
     );
     engine.hipJoint = engine.world.createJoint(
       new RevoluteJoint(

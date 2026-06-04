@@ -8,7 +8,6 @@ import {
   type Point,
 } from '../lib/pregenerated-levels';
 import {
-  LEVEL_BANK_SITE_NAME,
   cloneLevelBankLevel,
   createSeedLevelBank,
   type LevelBankDocument,
@@ -33,7 +32,7 @@ import {
 } from '../lib/physics';
 import { getSkierSpriteUrls } from '../lib/sprites';
 import { SKIER_SPRITE_OFFSETS, SKIER_SPRITE_SCALE } from '../lib/skier';
-import { isPointNearLine, smoothLineWithSpline } from '../lib/line-utils';
+import { isPointNearLine } from '../lib/line-utils';
 import { FINISH_ZONE_RADIUS } from '../lib/constants';
 import type { SkierRenderState } from '../types';
 import panIcon from '../assets/images/pan.png';
@@ -60,6 +59,7 @@ type EditorMode = 'create' | 'test';
 type TestStatus = 'ready' | 'running' | 'paused';
 type TestBanner = 'complete' | 'crashed' | null;
 type MetadataDifficulty = LevelDifficulty | '';
+type LineDraftStage = 'idle' | 'setting-end' | 'setting-control';
 
 const LEVEL_WIDTH = 19200;
 const LEVEL_HEIGHT = 14000;
@@ -167,6 +167,18 @@ function linePoints(points: Point[]): string {
   return points.map((point) => `${point.x},${point.y}`).join(' ');
 }
 
+function getQuadraticCurvePoints(start: Point, control: Point, end: Point, segments = 20): Point[] {
+  return Array.from({ length: segments + 1 }, (_, index) => {
+    const t = index / segments;
+    const inverse = 1 - t;
+
+    return {
+      x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+      y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+    };
+  });
+}
+
 function getPreviewViewBox(data: EditableLevelData): ViewBox {
   const points = [
     ...(data.start ? [data.start] : []),
@@ -207,12 +219,13 @@ function getDraftPoints(style: DrawStyle, points: Point[]): Point[] {
 
   if (style === 'curvy') {
     const start = points[0];
-    const end = points[points.length - 1];
-    const control = {
-      x: (start.x + end.x) / 2,
-      y: Math.min(start.y, end.y) - 120,
-    };
-    return smoothLineWithSpline([start, control, end], 10);
+    const end = points[1];
+    const control = points[2];
+
+    if (!end) return points;
+    if (!control) return [start, end];
+
+    return getQuadraticCurvePoints(start, control, end);
   }
 
   return points;
@@ -397,7 +410,7 @@ function ToolGroupHeading({ icon, children }: { icon: ReactNode; children: React
 export function LevelDesigner() {
   const [levelBankDocument, setLevelBankDocument] = useState<LevelBankDocument>(() => createSeedLevelBank());
   const [levelBankResponse, setLevelBankResponse] = useState<LevelBankResponse | null>(null);
-  const [levelBankLoading, setLevelBankLoading] = useState(true);
+  const [, setLevelBankLoading] = useState(true);
   const [levelBankSaving, setLevelBankSaving] = useState(false);
   const [screen, setScreen] = useState<DesignerScreen>('menu');
   const [activeLevel, setActiveLevel] = useState<StoredUserLevel | null>(null);
@@ -420,10 +433,11 @@ export function LevelDesigner() {
   const [testStatus, setTestStatus] = useState<TestStatus>('ready');
   const [testBanner, setTestBanner] = useState<TestBanner>(null);
   const [testSkier, setTestSkier] = useState<SkierRenderState | null>(null);
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const physicsRef = useRef<PhysicsEngine | null>(null);
-  const clickLineStartRef = useRef<Point | null>(null);
+  const lineDraftStageRef = useRef<LineDraftStage>('idle');
   const panStateRef = useRef<PanState | null>(null);
   const lastFrameRef = useRef<number | null>(null);
   const testBannerRef = useRef<TestBanner>(null);
@@ -448,9 +462,6 @@ export function LevelDesigner() {
       setLevelBankResponse(response);
       setLevelBankDocument(response.document);
       setLevelBankLoading(false);
-      if (!response.serverAvailable) {
-        setToast('Using bundled seed levels until the Netlify level bank is available.');
-      }
     }
 
     void fetchLevelBank();
@@ -467,15 +478,12 @@ export function LevelDesigner() {
   }, [toast]);
 
   useEffect(() => {
-    clickLineStartRef.current = null;
+    lineDraftStageRef.current = 'idle';
+    setDraftPoints([]);
   }, [createMode, drawLineKind, drawStyle, editorMode]);
 
-  const resetView = () => {
-    setViewBox(getFocusedViewBox(activeLevel?.data));
-  };
-
   const clearDraftAction = () => {
-    clickLineStartRef.current = null;
+    lineDraftStageRef.current = 'idle';
     setDraftPoints([]);
   };
 
@@ -583,7 +591,7 @@ export function LevelDesigner() {
       applyLevelBankResponse(response);
       return response;
     } catch (error) {
-      setToast(error instanceof Error ? error.message : 'Unable to save level to Netlify.');
+      setToast(error instanceof Error ? error.message : 'Unable to save level.');
       return null;
     } finally {
       setLevelBankSaving(false);
@@ -605,9 +613,9 @@ export function LevelDesigner() {
       }
 
       setDeleteTarget(null);
-      setToast('Level removed from the Netlify level bank.');
+      setToast('Level removed.');
     } catch (error) {
-      setToast(error instanceof Error ? error.message : 'Unable to delete level from Netlify.');
+      setToast(error instanceof Error ? error.message : 'Unable to delete level.');
     } finally {
       setLevelBankSaving(false);
     }
@@ -638,8 +646,7 @@ export function LevelDesigner() {
       future: [cloneLevelSnapshot(activeLevel), ...history.future].slice(0, MAX_HISTORY),
     });
     setActiveLevel(snapshotToLevel(previous));
-    clickLineStartRef.current = null;
-    setDraftPoints([]);
+    clearDraftAction();
   };
 
   const redoLevelAction = () => {
@@ -651,8 +658,7 @@ export function LevelDesigner() {
       future: remainingFuture,
     });
     setActiveLevel(snapshotToLevel(next));
-    clickLineStartRef.current = null;
-    setDraftPoints([]);
+    clearDraftAction();
   };
 
   const addFeatureToActiveLevel = (feature: LevelFeature) => {
@@ -716,7 +722,7 @@ export function LevelDesigner() {
     setCreateModalOpen(false);
     setEditorMode('create');
     clearDraftAction();
-    setToast(response?.serverAvailable ? 'Level shell saved to Netlify.' : 'Level shell created. Save again when Netlify is available.');
+    setToast(response?.serverAvailable ? 'Level created.' : 'Level created locally.');
   };
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -774,28 +780,51 @@ export function LevelDesigner() {
       return;
     }
 
-    if ((drawStyle === 'straight' || drawStyle === 'curvy') && draftPoints.length === 1) {
-      const points = getDraftPoints(drawStyle, [draftPoints[0], point]);
-      const kind = drawLineKind === 'collision' ? 'solid' : 'scenery';
-      recordHistory();
-      addFeatureToActiveLevel(createFeature(kind, points));
-      clickLineStartRef.current = null;
-      setDraftPoints([]);
-      return;
-    }
+    if (drawStyle === 'straight') {
+      const start = draftPoints[0];
 
-    if (drawStyle === 'straight' || drawStyle === 'curvy') {
-      if (clickLineStartRef.current) {
-        const points = getDraftPoints(drawStyle, [clickLineStartRef.current, point]);
+      if (lineDraftStageRef.current === 'setting-end' && start) {
+        const points = getDraftPoints(drawStyle, [start, point]);
         const kind = drawLineKind === 'collision' ? 'solid' : 'scenery';
         recordHistory();
         addFeatureToActiveLevel(createFeature(kind, points));
-        clickLineStartRef.current = null;
-        setDraftPoints([]);
+        clearDraftAction();
         return;
       }
 
-      clickLineStartRef.current = point;
+      lineDraftStageRef.current = 'setting-end';
+      setDraftPoints([point]);
+      return;
+    }
+
+    if (drawStyle === 'curvy') {
+      const [start, end] = draftPoints;
+
+      if (lineDraftStageRef.current === 'setting-control' && start && end) {
+        const points = getDraftPoints(drawStyle, [start, end, point]);
+        const kind = drawLineKind === 'collision' ? 'solid' : 'scenery';
+        recordHistory();
+        addFeatureToActiveLevel(createFeature(kind, points));
+        clearDraftAction();
+        return;
+      }
+
+      if (lineDraftStageRef.current === 'setting-end' && start) {
+        lineDraftStageRef.current = 'setting-control';
+        setDraftPoints([
+          start,
+          point,
+          {
+            x: (start.x + point.x) / 2,
+            y: (start.y + point.y) / 2,
+          },
+        ]);
+        return;
+      }
+
+      lineDraftStageRef.current = 'setting-end';
+      setDraftPoints([point]);
+      return;
     }
 
     setDraftPoints([point]);
@@ -829,13 +858,27 @@ export function LevelDesigner() {
 
     if (createMode !== 'draw' || draftPoints.length === 0) return;
 
-    if (drawStyle === 'straight' || drawStyle === 'curvy') {
-      const start = clickLineStartRef.current ?? draftPoints[0];
-      setDraftPoints([start, point]);
+    if (drawStyle === 'straight' && lineDraftStageRef.current === 'setting-end') {
+      setDraftPoints([draftPoints[0], point]);
       return;
     }
 
-    setDraftPoints((points) => [...points, point]);
+    if (drawStyle === 'curvy') {
+      if (lineDraftStageRef.current === 'setting-end') {
+        setDraftPoints([draftPoints[0], point]);
+        return;
+      }
+
+      if (lineDraftStageRef.current === 'setting-control' && draftPoints[1]) {
+        setDraftPoints([draftPoints[0], draftPoints[1], point]);
+        return;
+      }
+    }
+
+    if (drawStyle === 'sketch') {
+      setDraftPoints((points) => [...points, point]);
+      return;
+    }
   };
 
   const handlePointerUp = () => {
@@ -844,10 +887,11 @@ export function LevelDesigner() {
       return;
     }
 
+    if (drawStyle === 'straight' || drawStyle === 'curvy') {
+      return;
+    }
+
     if (!activeLevel || editorMode !== 'create' || createMode !== 'draw' || draftPoints.length < 2) {
-      if (drawStyle === 'straight' || drawStyle === 'curvy') {
-        return;
-      }
       setDraftPoints([]);
       return;
     }
@@ -861,7 +905,7 @@ export function LevelDesigner() {
     const kind = drawLineKind === 'collision' ? 'solid' : 'scenery';
     recordHistory();
     addFeatureToActiveLevel(createFeature(kind, points));
-    setDraftPoints([]);
+    clearDraftAction();
   };
 
   const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -888,7 +932,7 @@ export function LevelDesigner() {
     setActiveLevel(updatedLevel);
     const response = await saveLevelToServer(updatedLevel);
     if (response?.serverAvailable) {
-      setToast(savedStatus === 'published' ? 'Level published to the Netlify level bank.' : 'Level saved to Netlify.');
+      setToast(savedStatus === 'published' ? 'Level published.' : 'Level saved.');
     }
   };
 
@@ -922,7 +966,7 @@ export function LevelDesigner() {
     if (!response?.serverAvailable) return;
 
     setPublishModalOpen(false);
-    setToast('Level published to the Netlify level bank.');
+    setToast('Level published.');
   };
 
   const resetTestRun = () => {
@@ -997,7 +1041,7 @@ export function LevelDesigner() {
     const canPublish = Boolean(data.start && data.finish);
 
     return (
-      <main className="level-editor-shell">
+      <main className={`level-editor-shell ${toolbarCollapsed ? 'toolbar-collapsed' : ''}`}>
         <header className="level-editor-header">
           <button className="text-action" type="button" onClick={() => setScreen('menu')}>
             Back to levels
@@ -1048,6 +1092,15 @@ export function LevelDesigner() {
 
         <section className="editor-workspace">
           <aside className="editor-tool-panel">
+            <button
+              className="toolbar-collapse-button"
+              type="button"
+              onClick={() => setToolbarCollapsed((collapsed) => !collapsed)}
+              aria-label={toolbarCollapsed ? 'Show toolbar' : 'Hide toolbar'}
+            >
+              {toolbarCollapsed ? '>' : '<'}
+            </button>
+            <div className="editor-tool-panel-inner">
             {editorMode === 'create' ? (
               <>
                 <div className="tool-group">
@@ -1057,14 +1110,11 @@ export function LevelDesigner() {
                     type="button"
                     onClick={() => selectCreateMode('move')}
                   >
-                    Pan and zoom
+                    Pan
                   </button>
-                  <div className="zoom-button-row">
+                  <div className="zoom-button-row" aria-label="Zoom controls">
                     <button type="button" onClick={() => zoomView('out')} aria-label="Zoom out">
                       -
-                    </button>
-                    <button type="button" onClick={resetView}>
-                      Fit
                     </button>
                     <button type="button" onClick={() => zoomView('in')} aria-label="Zoom in">
                       +
@@ -1181,12 +1231,9 @@ export function LevelDesigner() {
                   <button className="wide-tool-button" type="button" onClick={resetTestRun}>
                     Reset run
                   </button>
-                  <div className="zoom-button-row">
+                  <div className="zoom-button-row" aria-label="Zoom controls">
                     <button type="button" onClick={() => zoomView('out')} aria-label="Zoom out">
                       -
-                    </button>
-                    <button type="button" onClick={resetView}>
-                      Fit
                     </button>
                     <button type="button" onClick={() => zoomView('in')} aria-label="Zoom in">
                       +
@@ -1206,6 +1253,7 @@ export function LevelDesigner() {
               <span className={data.finish ? 'complete' : ''}>Finish point</span>
               <span className={canPublish ? 'complete' : ''}>Ready to publish</span>
             </div>
+            </div>
           </aside>
 
           <section className={`editor-map-panel mode-${editorMode}`}>
@@ -1220,7 +1268,7 @@ export function LevelDesigner() {
               onPointerUp={handlePointerUp}
               onPointerCancel={() => {
                 panStateRef.current = null;
-                setDraftPoints([]);
+                clearDraftAction();
               }}
               onWheel={handleWheel}
             >
@@ -1310,11 +1358,6 @@ export function LevelDesigner() {
           Create a new level
         </button>
       </section>
-
-      <div className={`level-bank-status ${levelBankResponse?.serverAvailable ? 'online' : 'offline'}`}>
-        <span>{levelBankLoading ? 'Loading level bank' : levelBankResponse?.serverAvailable ? 'Netlify level bank connected' : 'Static seed fallback'}</span>
-        <span>{LEVEL_BANK_SITE_NAME}</span>
-      </div>
 
       <section className="level-grid" aria-label="Your levels">
         {levels.map((level) => {
@@ -1452,7 +1495,7 @@ function DeleteLevelModal({
       <section className="metadata-modal" role="dialog" aria-modal="true" aria-labelledby="delete-level-title">
         <h2 id="delete-level-title">Delete level?</h2>
         <p className="delete-level-copy">
-          This will remove the level from the Netlify level bank for this site.
+          This will remove the level from your levels.
         </p>
         <p className="delete-level-name">{level.metadata.name}</p>
         <div className="metadata-modal-actions">
