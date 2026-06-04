@@ -39,6 +39,64 @@ function cloneFeatures(features: LevelFeature[]): LevelFeature[] {
   }));
 }
 
+function isPoint(value: unknown): value is Point {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Point).x === 'number' &&
+    typeof (value as Point).y === 'number'
+  );
+}
+
+function normalizeFeatures(features: unknown, fallbackKind: LevelFeature['kind']): LevelFeature[] {
+  if (!Array.isArray(features)) return [];
+
+  return features
+    .map((feature, index): LevelFeature | null => {
+      if (typeof feature !== 'object' || feature === null) return null;
+
+      const candidate = feature as Partial<LevelFeature>;
+      const points = Array.isArray(candidate.points)
+        ? candidate.points.filter(isPoint).map((point) => ({ ...point }))
+        : [];
+
+      if (points.length === 0) return null;
+
+      return {
+        ...candidate,
+        id: typeof candidate.id === 'string' ? candidate.id : `level-feature-${index}`,
+        kind: candidate.kind === 'solid' || candidate.kind === 'scenery' ? candidate.kind : fallbackKind,
+        points,
+      };
+    })
+    .filter((feature): feature is LevelFeature => feature !== null);
+}
+
+export function normalizeLevel(level: Level): Level {
+  const data = level.data;
+  const start = isPoint(level.start) ? level.start : data?.start;
+  const finish = isPoint(level.finish) ? level.finish : data?.finish;
+  const blackLines = normalizeFeatures(data?.blackLines, 'solid');
+  const greyLines = normalizeFeatures(data?.greyLines, 'scenery');
+  const features = Array.isArray(level.features)
+    ? normalizeFeatures(level.features, 'solid')
+    : [...blackLines, ...greyLines];
+
+  return {
+    ...level,
+    id: level.id || crypto.randomUUID(),
+    start: isPoint(start) ? { ...start } : { x: 400, y: 100 },
+    finish: isPoint(finish) ? { ...finish } : { x: 400, y: 900 },
+    data: {
+      start: isPoint(start) ? { ...start } : { x: 400, y: 100 },
+      finish: isPoint(finish) ? { ...finish } : { x: 400, y: 900 },
+      blackLines,
+      greyLines,
+    },
+    features,
+  };
+}
+
 function normalizeIndex(index: number, length: number): number {
   return ((index % length) + length) % length;
 }

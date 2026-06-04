@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import PartySocket from 'partysocket';
-import type { Level } from '../lib/level-generator';
+import { normalizeLevel, type Level } from '../lib/level-generator';
 import type { GameMode, Line, SkierRenderState, SkierState } from '../types';
 
 export type GamePhase = 'lobby' | 'playing' | 'round-complete' | 'game-over';
@@ -89,7 +89,7 @@ export function usePartySocket(roomId: string | null) {
             setPlayerId(data.playerId);
             setPlayers(data.players);
             setGamePhase(data.gamePhase);
-            if (data.level) setLevel(data.level);
+            if (data.level) setLevel(normalizeLevel(data.level));
             if (data.roundStartTime) setRoundStartTime(data.roundStartTime);
             setCurrentRound(data.currentRound ?? 0);
             setTotalRounds(data.totalRounds ?? 5);
@@ -101,7 +101,7 @@ export function usePartySocket(roomId: string | null) {
           case 'game-state':
             setGamePhase(data.gamePhase);
             setPlayers(data.players);
-            if (data.level) setLevel(data.level);
+            if (data.level) setLevel(normalizeLevel(data.level));
             if (data.roundStartTime) setRoundStartTime(data.roundStartTime);
             setCurrentRound(data.currentRound ?? 0);
             setTotalRounds(data.totalRounds ?? 5);
@@ -137,7 +137,7 @@ export function usePartySocket(roomId: string | null) {
             break;
             
           case 'level-update':
-            if (data.level) setLevel(data.level);
+            if (data.level) setLevel(normalizeLevel(data.level));
             if (data.roundStartTime) setRoundStartTime(data.roundStartTime);
             setRemoteLines([]);
             setRemoteSkiers(new Map());

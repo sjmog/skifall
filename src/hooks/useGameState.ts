@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { generateLevel, type Level } from '../lib/level-generator';
+import { generateLevel, normalizeLevel, type Level } from '../lib/level-generator';
 import { calculateScore } from '../lib/scoring';
 
 export type RoundPhase = 'ready' | 'playing' | 'finished';
@@ -22,7 +22,7 @@ interface UseGameStateReturn {
 }
 
 export function useGameState(initialLevel?: Level | null): UseGameStateReturn {
-  const [level, setLevelState] = useState<Level>(() => initialLevel ?? generateLevel());
+  const [level, setLevelState] = useState<Level>(() => normalizeLevel(initialLevel ?? generateLevel()));
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const pendingLevelRef = useRef<Level | null>(null);
   const [pendingLevel, setPendingLevel] = useState<Level | null>(null);
@@ -35,7 +35,7 @@ export function useGameState(initialLevel?: Level | null): UseGameStateReturn {
 
   const applyPendingLevel = useCallback(() => {
     if (pendingLevelRef.current) {
-      setLevelState(pendingLevelRef.current);
+      setLevelState(normalizeLevel(pendingLevelRef.current));
       pendingLevelRef.current = null;
       setPendingLevel(null);
     setRoundResult(null);
@@ -43,7 +43,7 @@ export function useGameState(initialLevel?: Level | null): UseGameStateReturn {
   }, []);
 
   const setLevel = useCallback((newLevel: Level) => {
-    setLevelState(newLevel);
+    setLevelState(normalizeLevel(newLevel));
     setRoundResult(null);
   }, []);
 
